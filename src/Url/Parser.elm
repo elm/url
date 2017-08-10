@@ -1,4 +1,4 @@
-module UrlParser exposing
+module Url.Parser exposing
   ( Parser, string, int, s
   , (</>), map, oneOf, top, custom
   , QueryParser, (<?>), stringParam, intParam, customParam
