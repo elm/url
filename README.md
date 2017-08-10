@@ -1,12 +1,13 @@
 # Work with URLs
 
-This library has two uses:
+This library has two modules:
 
-  - `Url.Builder` &mdash; Build URLs for HTTP requests
-  - `Url.Parser` &mdash; Parse URLs for “routing” in single-page apps (SPAs)
+  - `Url.Builder` to build URLs for HTTP requests
+  - `Url.Parser` to parse URLs for “routing” in single-page apps (SPAs)
 
 Check out those modules for specific usage examples!
 
+<br>
 
 ## What is a URL?
 
