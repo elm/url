@@ -26,6 +26,8 @@ And here are some facts that I found surprising:
 
   - **Escaping** &mdash; The spec uses the term [percent-encoded](https://tools.ietf.org/html/rfc3986#section-2.1) to reduce confusion with other escape mechanisms. The format is `%XX` allowing two hex digits. According to [this table of ASCII characters](http://ascii.cl/), you could encode `?` as `%3F` and `=` as `%3D`. There are many subtlties though, so I recommend reading [this](https://en.wikipedia.org/wiki/Percent-encoding) for more information!
 
+<br>
+
 > **Note:** The difference between a URI and a URL is kind of subtle. [This post](https://danielmiessler.com/study/url-uri/) explains the difference nicely. I decided to call this library `elm-lang/url` because it is primarily concerned with HTTP which does need actual locations.
 
 <br>
