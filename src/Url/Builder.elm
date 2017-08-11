@@ -83,8 +83,8 @@ so the appropriate `Access-Control-Allow-Origin` header must be enabled on the
 [cors]: https://developer.mozilla.org/en-US/docs/Web/HTTP/Access_control_CORS
 -}
 crossOrigin : String -> List String -> List QueryParameter -> String
-crossOrigin baseUrl pathSegments parameters =
-  origin ++ "/" ++ String.join "/" pathSegments ++ toQuery parameters
+crossOrigin prePath pathSegments parameters =
+  prePath ++ "/" ++ String.join "/" pathSegments ++ toQuery parameters
 
 
 {-| Specify whether a [`custom`](#custom) URL is absolute, relative, or
@@ -125,6 +125,19 @@ custom root pathSegments parameters maybeFragment =
       fragmentless ++ "#" ++ fragment
 
 
+rootToPrePath : Root -> String
+rootToPrePath root =
+  case root of
+    Absolute ->
+      "/"
+
+    Relative ->
+      ""
+
+    CrossOrigin prePath ->
+      prePath
+
+
 
 -- QUERY PARAMETERS
 
@@ -159,7 +172,7 @@ So this is just a convenience function, making your code a bit shorter!
 -}
 int : String -> Int -> QueryParameter
 int key int =
-  QueryParameter (percentEncode key) (String.fromInt value)
+  QueryParameter (percentEncode key) (String.fromInt int)
 
 
 {-| Convert a list of query parameters to a percent-encoded query. This
@@ -244,7 +257,8 @@ This function does the opposite! Here are the reverse examples:
 Why is it a `Maybe` though? Well, these strings come from strangers on the
 internet as a bunch of bits and may have encoding problems. For example:
 
-    percentDecode "%"   == Nothing
+    percentDecode "%"   == Nothing  -- not followed by two hex digits
+    percentDecode "%XY" == Nothing  -- not followed by two HEX digits
     percentDecode "%C2" == Nothing  -- half of the "¢" encoding "%C2%A2"
 
 This is the same behavior as JavaScript's [`decodeURIComponent`][js] function.
