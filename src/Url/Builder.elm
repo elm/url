@@ -5,7 +5,18 @@ module Url.Builder exposing
   )
 
 
-{-|
+{-| In [the URI spec](https://tools.ietf.org/html/rfc3986), Tim Breners-Lee
+says a URL looks like this:
+
+```
+  https://example.com:8042/over/there?name=ferret#nose
+  \___/   \______________/\_________/ \_________/ \__/
+    |            |            |            |        |
+  scheme     authority       path        query   fragment
+```
+
+This module helps you create these!
+
 
 # Builders
 @docs absolute, relative, crossOrigin, custom, Root
