@@ -19,6 +19,10 @@ module Url.Builder exposing
 -}
 
 
+import Elm.Kernel.Url
+
+
+
 {-| Create an absolute URL:
 
     absolute [ "packages", "elm-lang", "core" ] []
@@ -221,7 +225,7 @@ notes about Unicode [here][wiki].
 -}
 percentEncode : String -> String
 percentEncode =
-  Native.Http.percentEncode
+  Elm.Kernel.Url.percentEncode
 
 
 {-| Check out the `percentEncode` function to learn about percent-encoding.
@@ -249,4 +253,4 @@ This is the same behavior as JavaScript's [`decodeURIComponent`][js] function.
 -}
 percentDecode : String -> Maybe String
 percentDecode =
-  Native.Http.percentDecode
+  Elm.Kernel.Url.percentDecode
