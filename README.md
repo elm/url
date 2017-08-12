@@ -1,6 +1,6 @@
 # Work with URLs
 
-This library has two modules:
+This library has two primary modules:
 
   - `Url.Builder` to build URLs for HTTP requests
   - `Url.Parser` to parse URLs for “routing” in single-page apps (SPAs)
