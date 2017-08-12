@@ -70,32 +70,33 @@ type alias State value =
 
 {-| Parse a segment of the path as a `String`.
 
-    parsePath string location
-    -- /alice/  ==>  Just "alice"
-    -- /bob     ==>  Just "bob"
-    -- /42/     ==>  Just "42"
+    parse string "/alice/" == Just "alice"
+    parse string "/bob"    == Just "bob"
+    parse string "/42/"    == Just "42"
 -}
 string : Parser (String -> a) a
 string =
-  custom "STRING" Ok
+  custom "STRING" Just
 
 
 {-| Parse a segment of the path as an `Int`.
 
-    parsePath int location
-    -- /alice/  ==>  Nothing
-    -- /bob     ==>  Nothing
-    -- /42/     ==>  Just 42
+    parse int "/alice/" == Nothing
+    parse int "/bob"    == Nothing
+    parse int "/42/"    == Just 42
 -}
 int : Parser (Int -> a) a
 int =
   custom "NUMBER" String.toInt
 
 
-{-| Parse a segment of the path if it matches a given string.
+{-| Parse a segment of the path if it matches a given string. It is almost
+always used with [`</>`](#</>) or [`oneOf`](#oneOf). For example:
 
-    s "blog"  -- can parse /blog/
-              -- but not /glob/ or /42/ or anything else
+    parse (s "blog" </> int) "/blog/42" == Just 42
+    parse (s "blog" </> int) "/tree/42" == Nothing
+
+The path segment must be an exact match!
 -}
 s : String -> Parser a a
 s str =
@@ -113,13 +114,10 @@ s str =
 
 
 {-| Create a custom path segment parser. Here is how it is used to define the
-`int` and `string` parsers:
+`int` parser:
 
     int =
       custom "NUMBER" String.toInt
-
-    string =
-      custom "STRING" Ok
 
 You can use it to define something like “only CSS files” like this:
 
@@ -127,11 +125,11 @@ You can use it to define something like “only CSS files” like this:
     css =
       custom "CSS_FILE" <| \segment ->
         if String.endsWith ".css" segment then
-          Ok segment
+          Just segment
         else
-          Err "Does not end with .css"
+          Nothing
 -}
-custom : String -> (String -> Result String a) -> Parser (a -> b) b
+custom : String -> (String -> Maybe a) -> Parser (a -> b) b
 custom tipe stringToSomething =
   Parser <| \{ visited, unvisited, params, value } ->
     case unvisited of
@@ -140,10 +138,10 @@ custom tipe stringToSomething =
 
       next :: rest ->
         case stringToSomething next of
-          Ok nextValue ->
+          Just nextValue ->
             [ State (next :: visited) rest params (value nextValue) ]
 
-          Err msg ->
+          Nothing ->
             []
 
 
@@ -153,17 +151,23 @@ custom tipe stringToSomething =
 
 {-| Parse a path with multiple segments.
 
-    parsePath (s "blog" </> int) location
-    -- /blog/35/  ==>  Just 35
-    -- /blog/42   ==>  Just 42
-    -- /blog/     ==>  Nothing
-    -- /42/       ==>  Nothing
+    blog : Parser (Int -> a) a
+    blog =
+      s "blog" </> int
 
-    parsePath (s "search" </> string) location
-    -- /search/cats/  ==>  Just "cats"
-    -- /search/frog   ==>  Just "frog"
-    -- /search/       ==>  Nothing
-    -- /cats/         ==>  Nothing
+    -- parse blog "/blog/35/"  ==  Just 35
+    -- parse blog "/blog/42"   ==  Just 42
+    -- parse blog "/blog/"     ==  Nothing
+    -- parse blog "/42/"       ==  Nothing
+
+    search : Parser (String -> a) a
+    search =
+      s "search" </> string
+
+    -- parse search "/search/cats/"  ==  Just "cats"
+    -- parse search "/search/frog"   ==  Just "frog"
+    -- parse search "/search/"       ==  Nothing
+    -- parse search "/cats/"         ==  Nothing
 -}
 (</>) : Parser a b -> Parser b c -> Parser a c
 (</>) (Parser parseBefore) (Parser parseAfter) =
@@ -183,10 +187,9 @@ custom tipe stringToSomething =
     comment =
       map Comment rawComment
 
-    parsePath comment location
-    -- /user/bob/comments/42  ==>  Just { author = "bob", id = 42 }
-    -- /user/tom/comments/35  ==>  Just { author = "tom", id = 35 }
-    -- /user/sam/             ==>  Nothing
+    -- parse comment "/user/bob/comments/42" == Just { author = "bob", id = 42 }
+    -- parse comment "/user/tom/comments/35" == Just { author = "tom", id = 35 }
+    -- parse comment "/user/sam/"            == Nothing
 -}
 map : a -> Parser a b -> Parser (b -> c) c
 map subValue (Parser parse) =
@@ -225,18 +228,18 @@ mapHelp func {visited, unvisited, params, value} =
         , map Comment (s "user" </> string </> s "comments" </> int)
         ]
 
-    parsePath route location
-    -- /search/cats           ==>  Just (Search "cats")
-    -- /search/               ==>  Nothing
+    -- parse route "/search/cats "         == Just (Search "cats")
+    -- parse route "/search/"              == Nothing
 
-    -- /blog/42               ==>  Just (Blog 42)
-    -- /blog/cats             ==>  Nothing
+    -- parse route "/blog/42"              == Just (Blog 42)
+    -- parse route "/blog/cats"            == Nothing
 
-    -- /user/sam/             ==>  Just (User "sam")
-    -- /user/bob/comments/42  ==>  Just (Comment "bob" 42)
-    -- /user/tom/comments/35  ==>  Just (Comment "tom" 35)
-    -- /user/                 ==>  Nothing
+    -- parse route "/user/sam/"            == Just (User "sam")
+    -- parse route "/user/bob/comments/42" == Just (Comment "bob" 42)
+    -- parse route "/user/tom/comments/35" == Just (Comment "tom" 35)
+    -- parse route "/user/"                == Nothing
 
+If there are multiple parsers that could succeed, the first one wins.
 -}
 oneOf : List (Parser a b) -> Parser a b
 oneOf parsers =
@@ -252,12 +255,11 @@ oneOf parsers =
     blogRoute =
       oneOf
         [ map Overview top
-        , map Post  (s "post" </> int)
+        , map Post (s "post" </> int)
         ]
 
-    parsePath (s "blog" </> blogRoute) location
-    -- /blog/         ==>  Just Overview
-    -- /blog/post/42  ==>  Just (Post 42)
+    -- parse (s "blog" </> blogRoute) "/blog/"        == Just Overview
+    -- parse (s "blog" </> blogRoute) "/blog/post/42" == Just (Post 42)
 -}
 top : Parser a a
 top =
@@ -324,6 +326,8 @@ query (Q.Parser queryParser) =
 -- RUN A PARSER
 
 
+{-| Run a parser!
+-}
 parse : Parser (a -> a) a -> String -> Maybe a
 parse (Parser parser) pathAndQuery =
   case String.split "?" pathAndQuery of
