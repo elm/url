@@ -326,7 +326,25 @@ query (Q.Parser queryParser) =
 -- RUN A PARSER
 
 
-{-| Run a parser!
+{-| Actually run a parser! Remember how at the beginning of the docs I said
+[the URI spec](https://tools.ietf.org/html/rfc3986) defines a URL like this:
+
+```
+  https://example.com:8042/over/there?name=ferret#nose
+  \___/   \______________/\_________/ \_________/ \__/
+    |            |            |            |        |
+  scheme     authority       path        query   fragment
+```
+
+The `parse` function is expecting a string of the `path` and `query`.
+Rules include:
+
+  - No `scheme`
+  - No `authority`
+  - The path can start with a `/` or not. It does not matter.
+  - The path can end with a `/` or not. It does not matter.
+  - All query parameters must have an `=`, like `key=value`.
+
 -}
 parse : Parser (a -> a) a -> String -> Maybe a
 parse (Parser parser) pathAndQuery =
