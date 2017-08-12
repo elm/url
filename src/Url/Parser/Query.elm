@@ -1,6 +1,5 @@
 module Url.Parser.Query exposing
-  ( Parser, string, int, enum, custom
-  , parse, parseWithLeftovers
+  ( Parser, string, int, enum, Problem(..), custom
   , map, map2, map3, map4, map5, map6, map7, map8
   )
 
@@ -21,10 +20,7 @@ query parameter has the format `key=value` and is separated from the next
 parameter by the `&` character.
 
 # Parse Query Parameters
-@docs Parser, string, int, enum, custom
-
-# Run a Parser
-@docs parse, parseWithLeftovers
+@docs Parser, string, int, enum, Problem, custom
 
 # Mapping
 @docs map, map2, map3, map4, map5, map6, map7, map8
@@ -33,6 +29,7 @@ parameter by the `&` character.
 
 import Dict
 import Url.Builder exposing (percentDecode)
+import Url.Parser.Internal as Q
 
 
 
@@ -41,18 +38,8 @@ import Url.Builder exposing (percentDecode)
 
 {-| Parse a query like `?search=hat&page=2` into nice Elm data.
 -}
-type Parser a =
-  Parser (Parameters -> (a, Parameters))
-
-
-type alias Parameters =
-  Dict.Dict String (Status, List String)
-
-
-type Status = Visited | Unvisited
-
-
-type Problem = NotFound | Invalid String | TooMany (List String)
+type alias Parser a =
+  Q.QueryParser a
 
 
 
@@ -160,6 +147,36 @@ enum key dict =
         Err (TooMany stringList)
 
 
+
+-- PROBLEMS
+
+
+{-| The [`string`](#string), [`int`](#int), and [`enum`](#enum) parsers may
+fail for a few reasons.
+
+  - `NotFound` means there was no parameter with that name.
+  - `Invalid` means the parameter was found, but the value was not valid.
+  - `TooMany` means Q found more than one paramater with that name!
+
+If you actually *want* more than one parameter with the same name, check out
+the [`custom`](#custom) function below!
+
+And if you want to ignore your problems and hope everything turns out okay, you
+can write code like this:
+
+    map (Result.withDefault 1) (int "page")
+
+-}
+type Problem
+  = NotFound
+  | Invalid String
+  | TooMany (List String)
+
+
+
+-- CUSTOM PARSERS
+
+
 {-| Create a custom query parser. The [`string`](#string), [`int`](#int), and
 [`enum`](#enum) parsers are defined using this function. It can help you handle
 anything though!
@@ -173,15 +190,8 @@ posts on screen at once. You could say:
 -}
 custom : String -> (List String -> a) -> Parser a
 custom key func =
-  Parser \parameters ->
-    case Dict.get key parameters of
-      Nothing ->
-        ( func [], parameters )
-
-      Just (_, stringList) ->
-        ( func stringList
-        , Dict.insert key (Visited, stringList) parameters
-        )
+  Q.Parser <| \dict ->
+    func (Maybe.withDefault [] (Dict.get key dict))
 
 
 
@@ -197,12 +207,8 @@ default to `1` if there is any problem?
 
 -}
 map : (a -> b) -> Parser a -> Parser b
-map func (Parser pA) =
-  Parser <| \params0 ->
-    let
-      ( a, params1 ) = pA params0
-    in
-      ( func a, params1 )
+map func (Q.Parser a) =
+  Q.Parser <| \dict -> func (a dict)
 
 
 {-| Combine two parsers. A query like `?search=hats&page=2` could be parsed
@@ -219,13 +225,9 @@ with something like this:
 
 -}
 map2 : (a -> b -> result) -> Parser a -> Parser b -> Parser result
-map2 func (Parser pA) (Parser pB) =
-  Parser <| \params0 ->
-    let
-      ( a, params1 ) = pA params0
-      ( b, params2 ) = pB params1
-    in
-      ( func a b, params2 )
+map2 func (Q.Parser a) (Q.Parser b) =
+  Q.Parser <| \dict ->
+    func (a dict) (b dict)
 
 
 {-| Combine three parsers. A query like `?search=hats&page=2&sort=ascending`
@@ -253,72 +255,40 @@ could be parsed with something like this:
         ]
 -}
 map3 : (a -> b -> c -> result) -> Parser a -> Parser b -> Parser c -> Parser result
-map3 func (Parser pA) (Parser pB) (Parser pC) =
-  Parser <| \params0 ->
-    let
-      ( a, params1 ) = pA params0
-      ( b, params2 ) = pB params1
-      ( c, params3 ) = pC params2
-    in
-      ( func a b c, params3 )
+map3 func (Q.Parser a) (Q.Parser b) (Q.Parser c) =
+  Q.Parser <| \dict ->
+    func (a dict) (b dict) (c dict)
 
 
 {-|-}
 map4 : (a -> b -> c -> d -> result) -> Parser a -> Parser b -> Parser c -> Parser d -> Parser result
-map4 func (Parser pA) (Parser pB) (Parser pC) (Parser pD) =
-  Parser <| \params0 ->
-    let
-      ( a, params1 ) = pA params0
-      ( b, params2 ) = pB params1
-      ( c, params3 ) = pC params2
-      ( d, params4 ) = pD params3
-    in
-      ( func a b c d, params4 )
+map4 func (Q.Parser a) (Q.Parser b) (Q.Parser c) (Q.Parser d) =
+  Q.Parser <| \dict ->
+    func (a dict) (b dict) (c dict) (d dict)
+
 
 
 {-|-}
 map5 : (a -> b -> c -> d -> e -> result) -> Parser a -> Parser b -> Parser c -> Parser d -> Parser e -> Parser result
-map5 func (Parser pA) (Parser pB) (Parser pC) (Parser pD) (Parser pE) =
-  Parser <| \params0 ->
-    let
-      ( a, params1 ) = pA params0
-      ( b, params2 ) = pB params1
-      ( c, params3 ) = pC params2
-      ( d, params4 ) = pD params3
-      ( e, params5 ) = pE params4
-    in
-      ( func a b c d e, params5 )
+map5 func (Q.Parser a) (Q.Parser b) (Q.Parser c) (Q.Parser d) (Q.Parser e) =
+  Q.Parser <| \dict ->
+    func (a dict) (b dict) (c dict) (d dict) (e dict)
 
 
 {-|-}
 map6 : (a -> b -> c -> d -> e -> f -> result) -> Parser a -> Parser b -> Parser c -> Parser d -> Parser e -> Parser f -> Parser result
-map6 func (Parser pA) (Parser pB) (Parser pC) (Parser pD) (Parser pE) (Parser pF) =
-  Parser <| \params0 ->
-    let
-      ( a, params1 ) = pA params0
-      ( b, params2 ) = pB params1
-      ( c, params3 ) = pC params2
-      ( d, params4 ) = pD params3
-      ( e, params5 ) = pE params4
-      ( f, params6 ) = pF params5
-    in
-      ( func a b c d e f, params6 )
+map6 func (Q.Parser a) (Q.Parser b) (Q.Parser c) (Q.Parser d) (Q.Parser e) (Q.Parser f) =
+  Q.Parser <| \dict ->
+    func (a dict) (b dict) (c dict) (d dict) (e dict) (f dict)
+
 
 
 {-|-}
 map7 : (a -> b -> c -> d -> e -> f -> g -> result) -> Parser a -> Parser b -> Parser c -> Parser d -> Parser e -> Parser f -> Parser g -> Parser result
-map7 func (Parser pA) (Parser pB) (Parser pC) (Parser pD) (Parser pE) (Parser pF) (Parser pG) =
-  Parser <| \params0 ->
-    let
-      ( a, params1 ) = pA params0
-      ( b, params2 ) = pB params1
-      ( c, params3 ) = pC params2
-      ( d, params4 ) = pD params3
-      ( e, params5 ) = pE params4
-      ( f, params6 ) = pF params5
-      ( g, params7 ) = pG params6
-    in
-      ( func a b c d e f g, params7 )
+map7 func (Q.Parser a) (Q.Parser b) (Q.Parser c) (Q.Parser d) (Q.Parser e) (Q.Parser f) (Q.Parser g) =
+  Q.Parser <| \dict ->
+    func (a dict) (b dict) (c dict) (d dict) (e dict) (f dict) (g dict)
+
 
 
 {-| If you need higher than eight, you can define a function like this:
@@ -335,83 +305,6 @@ And then you can chain it to do as many of these as you would like:
 
 -}
 map8 : (a -> b -> c -> d -> e -> f -> g -> h -> result) -> Parser a -> Parser b -> Parser c -> Parser d -> Parser e -> Parser f -> Parser g -> Parser h -> Parser result
-map8 func (Parser pA) (Parser pB) (Parser pC) (Parser pD) (Parser pE) (Parser pF) (Parser pG) (Parser pH) =
-  Parser <| \params0 ->
-    let
-      ( a, params1 ) = pA params0
-      ( b, params2 ) = pB params1
-      ( c, params3 ) = pC params2
-      ( d, params4 ) = pD params3
-      ( e, params5 ) = pE params4
-      ( f, params6 ) = pF params5
-      ( g, params7 ) = pG params6
-      ( h, params8 ) = pH params7
-    in
-      ( func a b c d e f g h, params8 )
-
-
-
--- PARSE
-
-
-parse : Parser a -> String -> a
-parse (Parser parser) input =
-  Tuple.first (parser (toParameters input))
-
-
-parseWithLeftovers : Parser a -> String -> { query : a, leftovers : Dict String (List String) }
-parseWithLeftovers (Parser parser) input =
-  let
-    (query, parameters) =
-      parser (toParameters input)
-  in
-    { query = query
-    , leftovers = Dict.foldl keepVisited Dict.empty parameters
-    }
-
-
-keepVisited : String -> (Status, a) -> Dict String a -> Dict String a
-keepVisited key ( status, value ) dict =
-  case status of
-    Unvisited ->
-      Dict.insert key value dict
-
-    Visited ->
-      dict
-
-
-toParameters : String -> Parameters
-toParameters input =
-  let
-    query =
-      if String.left 1 input /= "?" then
-        String.dropLeft 1 input
-      else
-        input
-  in
-    List.foldr addToParameters Dict.empty (String.split "&" query)
-
-
-addToParameters : String -> Parameters -> Parameters
-addToParameters segment dict =
-  case String.split "=" segment of
-    [rawKey, rawValue] ->
-      case Maybe.map2 (,) (percentDecode rawKey) (percentDecode rawValue) of
-        Nothing ->
-          dict
-
-        Just (key, value) ->
-          Dict.modify key (addToParametersHelp value) dict
-
-    _ ->
-      dict
-
-
-addToParametersHelp : a -> Maybe (Status, List a) -> Maybe (Status, List a)
-addToParametersHelp value maybeList =
-  case maybeList of
-    Nothing ->
-      Just ( Unvisited, [value] )
-
-    Just list ->
-      Just ( Unvisited, value :: list )
+map8 func (Q.Parser a) (Q.Parser b) (Q.Parser c) (Q.Parser d) (Q.Parser e) (Q.Parser f) (Q.Parser g) (Q.Parser h) =
+  Q.Parser <| \dict ->
+    func (a dict) (b dict) (c dict) (d dict) (e dict) (f dict) (g dict) (h dict)
