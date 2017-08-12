@@ -1,29 +1,49 @@
 module Url.Parser exposing
   ( Parser, string, int, s
   , (</>), map, oneOf, top, custom
-  , QueryParser, (<?>), stringParam, intParam, customParam
-  , parsePath, parseHash
+  , (<?>), query
+  , parse
   )
 
-{-|
+{-| In [the URI spec](https://tools.ietf.org/html/rfc3986), Tim Breners-Lee
+says a URL looks like this:
+
+```
+  https://example.com:8042/over/there?name=ferret#nose
+  \___/   \______________/\_________/ \_________/ \__/
+    |            |            |            |        |
+  scheme     authority       path        query   fragment
+```
+
+This module is for parsing the `path` part.
+
 
 # Primitives
 @docs Parser, string, int, s
 
-# Path Parses
+# Parse the Path
 @docs (</>), map, oneOf, top, custom
 
-# Query Parameter Parsers
-@docs QueryParser, (<?>), stringParam, intParam, customParam
+# Parse the Query
+@docs (<?>), query
 
 # Run a Parser
-@docs parsePath, parseHash
+@docs parse
 
 -}
 
 import Dict exposing (Dict)
-import Http
-import Navigation
+import Url.Builder exposing (percentDecode)
+import Url.Parser.Query as Query
+import Url.Parser.Internal as Q
+
+
+
+-- INFIX TABLE
+
+
+infixr 7 </>
+infixl 8 <?>
 
 
 
@@ -39,7 +59,7 @@ type Parser a b =
 type alias State value =
   { visited : List String
   , unvisited : List String
-  , params : Dict String String
+  , params : Dict String (List String)
   , value : value
   }
 
@@ -151,9 +171,6 @@ custom tipe stringToSomething =
     List.concatMap parseAfter (parseBefore state)
 
 
-infixr 7 </>
-
-
 {-| Transform a path parser.
 
     type alias Comment = { author : String, id : Int }
@@ -248,127 +265,82 @@ top =
 
 
 
--- QUERY PARAMETERS
+-- QUERY
 
 
-{-| Turn query parameters like `?name=tom&age=42` into nice Elm data.
--}
-type QueryParser a b =
-  QueryParser (State a -> List (State b))
+{-| The [`Url.Parser.Query`](Url-Parser-Query) module defines its own
+[`Parser`](Url-Parser-Query#Parser) type. This function helps you use those
+with normal parsers. For example, maybe you want to add a search feature to
+your blog website:
 
+    import Url.Parser.Query as Query
 
-{-| Parse some query parameters.
-
-    type Route = BlogList (Maybe String) | BlogPost Int
+    type Route
+      = BlogList (Result Query.Problem String)
+      | BlogPost Int
 
     route : Parser (Route -> a) a
     route =
       oneOf
-        [ map BlogList (s "blog" <?> stringParam "search")
+        [ map BlogList (s "blog" <?> Query.string "search")
         , map BlogPost (s "blog" </> int)
         ]
 
-    parsePath route location
-    -- /blog/              ==>  Just (BlogList Nothing)
-    -- /blog/?search=cats  ==>  Just (BlogList (Just "cats"))
-    -- /blog/42            ==>  Just (BlogPost 42)
+    -- parse route "/blog/"             == Just (BlogList (Err Query.NotFound))
+    -- parse route "/blog/?search=cats" == Just (BlogList (Ok "cats"))
+    -- parse route "/blog/42"           == Just (BlogPost 42)
 -}
-(<?>) : Parser a b -> QueryParser b c -> Parser a c
-(<?>) (Parser parser) (QueryParser queryParser) =
-  Parser <| \state ->
-    List.concatMap queryParser (parser state)
+(<?>) : Parser a (query -> b) -> Query.Parser query -> Parser a b
+(<?>) parser queryParser =
+  parser </> query queryParser
 
 
-infixl 8 <?>
+{-| The [`Url.Parser.Query`](Url-Parser-Query) module defines its own
+[`Parser`](Url-Parser-Query#Parser) type. This function is a helper to convert
+those into normal parsers.
 
+    import Url.Parser.Query as Query
 
-{-| Parse a query parameter as a `String`.
+    -- the following expressions are both the same!
+    --
+    -- s "blog" <?> Query.string "search"
+    -- s "blog" </> query (Query.string "search")
 
-    parsePath (s "blog" <?> stringParam "search") location
-    -- /blog/              ==>  Just (Overview Nothing)
-    -- /blog/?search=cats  ==>  Just (Overview (Just "cats"))
+This may be handy if you need query parameters but are not parsing any path
+segments.
 -}
-stringParam : String -> QueryParser (Maybe String -> a) a
-stringParam name =
-  customParam name identity
-
-
-{-| Parse a query parameter as an `Int`. Maybe you want to show paginated
-search results. You could have a `start` query parameter to say which result
-should appear first.
-
-    parsePath (s "results" <?> intParam "start") location
-    -- /results           ==>  Just Nothing
-    -- /results?start=10  ==>  Just (Just 10)
--}
-intParam : String -> QueryParser (Maybe Int -> a) a
-intParam name =
-  customParam name intParamHelp
-
-
-intParamHelp : Maybe String -> Maybe Int
-intParamHelp maybeValue =
-  case maybeValue of
-    Nothing ->
-      Nothing
-
-    Just value ->
-      Result.toMaybe (String.toInt value)
-
-
-{-| Create a custom query parser. You could create parsers like these:
-
-    jsonParam : String -> Decoder a -> QueryParser (Maybe a -> b) b
-    enumParam : String -> Dict String a -> QueryParser (Maybe a -> b) b
-
-It may be worthwhile to have these in this library directly. If you need
-either one in practice, please open an issue [here][] describing your exact
-scenario. We can use that data to decide if they should be added.
-
-[here]: https://github.com/evancz/url-parser/issues
--}
-customParam : String -> (Maybe String -> a) -> QueryParser (a -> b) b
-customParam key func =
-  QueryParser <| \{ visited, unvisited, params, value } ->
-    [ State visited unvisited params (value (func (Dict.get key params))) ]
+query : Query.Parser query -> Parser (query -> a) a
+query (Q.Parser queryParser) =
+  Parser <| \{ visited, unvisited, params, value } ->
+    [ { visited = visited
+      , unvisited = unvisited
+      , params = params
+      , value = value (queryParser params)
+      }
+    ]
 
 
 
 -- RUN A PARSER
 
 
-{-| Parse based on `location.pathname` and `location.search`. This parser
-ignores the hash entirely.
--}
-parsePath : Parser (a -> a) a -> Navigation.Location -> Maybe a
-parsePath parser location =
-  parse parser location.pathname (parseParams location.search)
+parse : Parser (a -> a) a -> String -> Maybe a
+parse (Parser parser) pathAndQuery =
+  case String.split "?" pathAndQuery of
+    [ path, query ] ->
+      getFirstMatch <| parser <|
+        { visited = []
+        , unvisited = splitPath path
+        , params = queryToParameters query
+        , value = identity
+        }
+
+    _ ->
+      Nothing
 
 
-{-| Parse based on `location.hash` and `location.search`. This parser
-ignores the normal path entirely.
--}
-parseHash : Parser (a -> a) a -> Navigation.Location -> Maybe a
-parseHash parser location =
-  parse parser (String.dropLeft 1 location.hash) (parseParams location.search)
-
-
-
--- PARSER HELPERS
-
-
-parse : Parser (a -> a) a -> String -> Dict String String -> Maybe a
-parse (Parser parser) url params =
-  parseHelp <| parser <|
-    { visited = []
-    , unvisited = splitUrl url
-    , params = params
-    , value = identity
-    }
-
-
-parseHelp : List (State a) -> Maybe a
-parseHelp states =
+getFirstMatch : List (State a) -> Maybe a
+getFirstMatch states =
   case states of
     [] ->
       Nothing
@@ -382,12 +354,12 @@ parseHelp states =
           Just state.value
 
         _ ->
-          parseHelp rest
+          getFirstMatch rest
 
 
-splitUrl : String -> List String
-splitUrl url =
-  case String.split "/" url of
+splitPath : String -> List String
+splitPath path =
+  case String.split "/" path of
     "" :: segments ->
       segments
 
@@ -395,20 +367,31 @@ splitUrl url =
       segments
 
 
-parseParams : String -> Dict String String
-parseParams queryString =
-  queryString
-    |> String.dropLeft 1
-    |> String.split "&"
-    |> List.filterMap toKeyValuePair
-    |> Dict.fromList
+queryToParameters : String -> Dict String (List String)
+queryToParameters query =
+  List.foldr addToParameters Dict.empty (String.split "&" query)
 
 
-toKeyValuePair : String -> Maybe (String, String)
-toKeyValuePair segment =
+addToParameters : String -> Dict String (List String) -> Dict String (List String)
+addToParameters segment dict =
   case String.split "=" segment of
-    [key, value] ->
-      Maybe.map2 (,) (Http.decodeUri key) (Http.decodeUri value)
+    [rawKey, rawValue] ->
+      case Maybe.map2 (,) (percentDecode rawKey) (percentDecode rawValue) of
+        Nothing ->
+          dict
+
+        Just (key, value) ->
+          Dict.update key (addToParametersHelp value) dict
 
     _ ->
-      Nothing
+      dict
+
+
+addToParametersHelp : a -> Maybe (List a) -> Maybe (List a)
+addToParametersHelp value maybeList =
+  case maybeList of
+    Nothing ->
+      Just [value]
+
+    Just list ->
+      Just (value :: list)

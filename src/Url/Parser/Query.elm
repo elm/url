@@ -28,7 +28,6 @@ parameter by the `&` character.
 -}
 
 import Dict
-import Url.Builder exposing (percentDecode)
 import Url.Parser.Internal as Q
 
 
@@ -128,7 +127,7 @@ to get a parser of type `Parser Bool` that swallows any errors and defaults to
 
 **Note:** Parameters like `?debug` with no `=` are not supported by this library.
 -}
-enum : String -> Dict String a -> Parser (Result Problem a)
+enum : String -> Dict.Dict String a -> Parser (Result Problem a)
 enum key dict =
   custom key <| \stringList ->
     case stringList of

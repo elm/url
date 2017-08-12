@@ -1,12 +1,10 @@
 module Url.Parser.Internal exposing
   ( QueryParser(..)
-  , Parameters
   )
 
 
+import Dict
+
+
 type QueryParser a =
-  Parser (Parameters -> a)
-
-
-type alias Parameters =
-  Dict.Dict String (List String)
+  Parser (Dict.Dict String (List String) -> a)
