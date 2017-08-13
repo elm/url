@@ -11,7 +11,7 @@ Check out those modules for specific usage examples!
 
 ## What is a URL?
 
-A URL is defined by Tim Breners-Lee in [this document](https://tools.ietf.org/html/rfc3986). It is worth reading, but I will try to share some highlights. He shares an example like this:
+A URL is defined by Tim Berners-Lee in [this document](https://tools.ietf.org/html/rfc3986). It is worth reading, but I will try to share some highlights. He shares an example like this:
 
 ```
   https://example.com:8042/over/there?name=ferret#nose
