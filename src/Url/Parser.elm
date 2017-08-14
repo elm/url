@@ -446,10 +446,23 @@ preparePath : String -> List String
 preparePath path =
   case String.split "/" path of
     "" :: segments ->
-      segments
+      removeFinalEmpty segments
 
     segments ->
-      segments
+      removeFinalEmpty segments
+
+
+removeFinalEmpty : List String -> List String
+removeFinalEmpty segments =
+  case segments of
+    [] ->
+      []
+
+    "" :: [] ->
+      []
+
+    segment :: rest ->
+      segment :: removeFinalEmpty rest
 
 
 
