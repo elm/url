@@ -24,7 +24,7 @@ And here are some facts that I found surprising:
 
   - **ASCII only** &mdash; Behavior with other encodings is undefined in the spec. So a browser may handle a non-ASCII character one way, while this library handles it another. No one is wrong. It is just unspecified. I would stick to ASCII to be safe.
 
-  - **Escaping** &mdash; The spec uses the term [percent-encoded](https://tools.ietf.org/html/rfc3986#section-2.1) to reduce confusion with other escape mechanisms. The format is `%XX` allowing two hex digits. According to [this table of ASCII characters](http://ascii.cl/), you could encode `?` as `%3F` and `=` as `%3D`. There are many subtlties though, so I recommend reading [this](https://en.wikipedia.org/wiki/Percent-encoding) for more information!
+  - **Escaping** &mdash; The spec uses the term [percent-encoded](https://tools.ietf.org/html/rfc3986#section-2.1) to reduce confusion with other escape mechanisms. The format is `%XX` allowing two hex digits. According to [this table of ASCII characters](http://ascii.cl/), you could encode `?` as `%3F` and `=` as `%3D`. There are many subtleties though, so I recommend reading [this](https://en.wikipedia.org/wiki/Percent-encoding) for more information!
 
 <br>
 
