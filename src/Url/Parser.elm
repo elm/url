@@ -38,7 +38,7 @@ This module is for parsing the `path` part.
 -}
 
 import Dict exposing (Dict)
-import Url.Builder exposing (percentDecode)
+import Url exposing (percentDecode)
 import Url.Parser.Query as Query
 import Url.Parser.Internal as Q
 
