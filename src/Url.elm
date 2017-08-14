@@ -1,4 +1,4 @@
-module Url.Builder exposing
+module Url exposing
   ( absolute, relative, crossOrigin, custom, Root(..)
   , QueryParameter, string, int, toQuery
   , percentEncode, percentDecode
