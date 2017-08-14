@@ -36,6 +36,9 @@ import Elm.Kernel.Url
 
 {-| Create an absolute URL:
 
+    absolute [] []
+    -- "/"
+
     absolute [ "packages", "elm-lang", "core" ] []
     -- "/packages/elm-lang/core"
 
@@ -53,6 +56,9 @@ absolute pathSegments parameters =
 
 
 {-| Create a relative URL:
+
+    relative [] []
+    -- ""
 
     relative [ "elm-lang", "core" ] []
     -- "elm-lang/core"
@@ -76,7 +82,7 @@ relative pathSegments parameters =
     -- "https://example.com/products"
 
     crossOrigin "https://example.com" [] [] (Just "help")
-    -- "https://example.com#help"
+    -- "https://example.com/#help"
 
     crossOrigin
       "https://example.com:8042"
