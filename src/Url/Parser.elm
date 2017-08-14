@@ -2,7 +2,9 @@ module Url.Parser exposing
   ( Parser, string, int, s
   , (</>), map, oneOf, top, custom
   , (<?>), query
+  , fragment
   , parse
+  , parseLocation, preparePath, prepareQuery, prepareFragment
   )
 
 {-| In [the URI spec](https://tools.ietf.org/html/rfc3986), Tim Berners-Lee
@@ -21,14 +23,17 @@ This module is for parsing the `path` part.
 # Primitives
 @docs Parser, string, int, s
 
-# Parse the Path
+# Path
 @docs (</>), map, oneOf, top, custom
 
-# Parse the Query
+# Query
 @docs (<?>), query
 
-# Run a Parser
-@docs parse
+# Fragment
+@docs fragment
+
+# Running Parsers
+@docs parse, parseLocation, preparePath, prepareQuery, prepareFragment
 
 -}
 
@@ -59,7 +64,8 @@ type Parser a b =
 type alias State value =
   { visited : List String
   , unvisited : List String
-  , params : Dict String (List String)
+  , query : Dict String (List String)
+  , fragment : Maybe String
   , value : value
   }
 
@@ -100,14 +106,14 @@ The path segment must be an exact match!
 -}
 s : String -> Parser a a
 s str =
-  Parser <| \{ visited, unvisited, params, value } ->
+  Parser <| \{ visited, unvisited, query, fragment, value } ->
     case unvisited of
       [] ->
         []
 
       next :: rest ->
         if next == str then
-          [ State (next :: visited) rest params value ]
+          [ State (next :: visited) rest query fragment value ]
 
         else
           []
@@ -131,7 +137,7 @@ You can use it to define something like “only CSS files” like this:
 -}
 custom : String -> (String -> Maybe a) -> Parser (a -> b) b
 custom tipe stringToSomething =
-  Parser <| \{ visited, unvisited, params, value } ->
+  Parser <| \{ visited, unvisited, query, fragment, value } ->
     case unvisited of
       [] ->
         []
@@ -139,7 +145,7 @@ custom tipe stringToSomething =
       next :: rest ->
         case stringToSomething next of
           Just nextValue ->
-            [ State (next :: visited) rest params (value nextValue) ]
+            [ State (next :: visited) rest query fragment (value nextValue) ]
 
           Nothing ->
             []
@@ -193,22 +199,14 @@ custom tipe stringToSomething =
 -}
 map : a -> Parser a b -> Parser (b -> c) c
 map subValue (Parser parse) =
-  Parser <| \{ visited, unvisited, params, value } ->
-    List.map (mapHelp value) <| parse <|
-      { visited = visited
-      , unvisited = unvisited
-      , params = params
-      , value = subValue
-      }
+  Parser <| \{ visited, unvisited, query, fragment, value } ->
+    List.map (mapState value) <| parse <|
+      State visited unvisited query fragment subValue
 
 
-mapHelp : (a -> b) -> State a -> State b
-mapHelp func {visited, unvisited, params, value} =
-  { visited = visited
-  , unvisited = unvisited
-  , params = params
-  , value = func value
-  }
+mapState : (a -> b) -> State a -> State b
+mapState func { visited, unvisited, query, fragment, value } =
+  State visited unvisited query fragment (func value)
 
 
 {-| Try a bunch of different path parsers.
@@ -313,17 +311,42 @@ segments.
 -}
 query : Query.Parser query -> Parser (query -> a) a
 query (Q.Parser queryParser) =
-  Parser <| \{ visited, unvisited, params, value } ->
-    [ { visited = visited
-      , unvisited = unvisited
-      , params = params
-      , value = value (queryParser params)
-      }
+  Parser <| \{ visited, unvisited, query, fragment, value } ->
+    [ State visited unvisited query fragment (value (queryParser query))
     ]
 
 
 
--- RUN A PARSER
+-- FRAGMENT
+
+
+{-| Create a parser for the URL fragment, the stuff after the `#`. This can
+be handy for handling links to DOM elements within a page. Pages like this one!
+
+    type alias Docs =
+      { moduleName : String
+      , value : Maybe String
+      }
+
+    docs : Parser (Docs -> a) a
+    docs =
+      map Docs (string </> fragment identity)
+
+    -- parse docs "/List/#map" == Just (Docs "List" (Just "map"))
+    -- parse docs "/List#map"  == Just (Docs "List" (Just "map"))
+    -- parse docs "/List#"     == Just (Docs "List" (Just ""))
+    -- parse docs "/List"      == Just (Docs "List" Nothing)
+
+-}
+fragment : (Maybe String -> fragment) -> Parser (fragment -> a) a
+fragment toFrag =
+  Parser <| \{ visited, unvisited, query, fragment, value } ->
+    [ State visited unvisited query fragment (value (toFrag fragment))
+    ]
+
+
+
+-- PARSE
 
 
 {-| Actually run a parser! Remember how at the beginning of the docs I said
@@ -336,7 +359,7 @@ query (Q.Parser queryParser) =
   scheme     authority       path        query   fragment
 ```
 
-The `parse` function is expecting a string of the `path` and `query`.
+The `parse` function is expecting the `path`, `query`, and `fragment`.
 Rules include:
 
   - No `scheme`
@@ -344,21 +367,45 @@ Rules include:
   - The path can start with a `/` or not. It does not matter.
   - The path can end with a `/` or not. It does not matter.
   - All query parameters must have an `=`, like `key=value`.
+  - If there is more than one `?` or `#` it fails.
 
 -}
 parse : Parser (a -> a) a -> String -> Maybe a
-parse (Parser parser) pathAndQuery =
-  case String.split "?" pathAndQuery of
-    [ path, query ] ->
-      getFirstMatch <| parser <|
-        { visited = []
-        , unvisited = splitPath path
-        , params = queryToParameters query
-        , value = identity
-        }
+parse parser pathQueryFragment =
+  case String.indexes "?" pathQueryFragment of
+    [i] ->
+      case String.indexes "#" pathQueryFragment of
+        [j] ->
+          parseLocation
+            parser
+            (preparePath (String.left i pathQueryFragment))
+            (prepareQuery (String.slice i j pathQueryFragment))
+            (prepareFragment (String.dropLeft j pathQueryFragment))
+
+        _ ->
+          Nothing
 
     _ ->
       Nothing
+
+
+
+-- PARSE LOCATIONS
+
+
+{-| This library is primarily used to process [`Location`][loc] values which
+have already split the URL into its distinct segments. The `parseLocation`
+function is designed for working with these `Location` values.
+
+Use `preparePath`, `prepareQuery`, and `prepareFragment` to get the data in
+the right format.
+
+[loc]: http://package.elm-lang.org/packages/elm-lang/navigation/latest/Navigation#Location
+-}
+parseLocation : Parser (a -> a) a -> List String -> Dict String (List String) -> Maybe String -> Maybe a
+parseLocation (Parser parser) path query fragment =
+  getFirstMatch <| parser <|
+    State [] path query fragment identity
 
 
 getFirstMatch : List (State a) -> Maybe a
@@ -379,8 +426,24 @@ getFirstMatch states =
           getFirstMatch rest
 
 
-splitPath : String -> List String
-splitPath path =
+
+-- PREPARE PATH
+
+
+{-| When using [`parseLocation`](#parseLocation) to parse a [`Location`][loc],
+this function helps get `location.path` in the right format:
+
+    preparePath "/blog/42/" == [ "blog", "42" ]
+    preparePath "/blog/42"  == [ "blog", "42" ]
+    preparePath "blog/42"   == [ "blog", "42" ]
+
+Notice that having a `/` at the beginning or the end does not change the
+output. This means `/a/b` and `/a/b/` will be the same URL with this function.
+
+[loc]: http://package.elm-lang.org/packages/elm-lang/navigation/latest/Navigation#Location
+-}
+preparePath : String -> List String
+preparePath path =
   case String.split "/" path of
     "" :: segments ->
       segments
@@ -389,13 +452,40 @@ splitPath path =
       segments
 
 
-queryToParameters : String -> Dict String (List String)
-queryToParameters query =
-  List.foldr addToParameters Dict.empty (String.split "&" query)
+
+-- PREPARE QUERY
 
 
-addToParameters : String -> Dict String (List String) -> Dict String (List String)
-addToParameters segment dict =
+{-| When using [`parseLocation`](#parseLocation) to parse a [`Location`][loc],
+this function helps get `location.query` in the right format:
+
+    import Dict
+
+    prepareQuery "search=cat"  == Dict.fromList [ ("search", ["cat"]) ]
+    prepareQuery "?search=cat" == Dict.fromList [ ("search", ["cat"]) ]
+    prepareQuery "?symbol=%23" == Dict.fromList [ ("symbol", ["#"]) ]
+
+    prepareQuery "?x=3&y=4"    == Dict.fromList [ ("x", ["3"]), ("y", ["4"]) ]
+    prepareQuery "?x=3&x=4"    == Dict.fromList [ ("x", ["3","4"]) ]
+    prepareQuery "?debug&x=3"  == Dict.fromList [ ("x", ["3"]) ]
+
+Notice that:
+
+  - Skipping the `?` at the beginning is allowed.
+  - [`percentDecode`][pd] is called on the `k` and `v` parts of a `k=v` pair.
+  - When there are repeat parameters, their order is maintained.
+  - Messed up parameters (e.g. no `=`) are skipped.
+
+[loc]: http://package.elm-lang.org/packages/elm-lang/navigation/latest/Navigation#Location
+[pd]: http://package.elm-lang.org/packages/elm-lang/url/latest/Url-Builder#percentDecode
+-}
+prepareQuery : String -> Dict String (List String)
+prepareQuery query =
+  List.foldr addParam Dict.empty (String.split "&" query)
+
+
+addParam : String -> Dict String (List String) -> Dict String (List String)
+addParam segment dict =
   case String.split "=" segment of
     [rawKey, rawValue] ->
       case Maybe.map2 (,) (percentDecode rawKey) (percentDecode rawValue) of
@@ -417,3 +507,28 @@ addToParametersHelp value maybeList =
 
     Just list ->
       Just (value :: list)
+
+
+
+-- PREPARE FRAGMENT
+
+
+{-| When using [`parseLocation`](#parseLocation) to parse a [`Location`][loc],
+this function helps get `location.hash` in the right format:
+
+    prepareFragment ""        == Nothing
+    prepareFragment "no-hash" == Nothing
+    prepareFragment "#"       == Just ""
+    prepareFragment "#hi"     == Just "hi"
+    prepareFragment "#hello"  == Just "hello"
+
+Notice that no `#` means you get `Nothing`.
+
+[loc]: http://package.elm-lang.org/packages/elm-lang/navigation/latest/Navigation#Location
+-}
+prepareFragment : String -> Maybe String
+prepareFragment fragment =
+  if String.startsWith "#" fragment then
+    Just (String.dropLeft 1 fragment)
+  else
+    Nothing
