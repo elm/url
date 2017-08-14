@@ -3,7 +3,7 @@ module Url.Parser.Query exposing
   , map, map2, map3, map4, map5, map6, map7, map8
   )
 
-{-| In [the URI spec](https://tools.ietf.org/html/rfc3986), Tim Breners-Lee
+{-| In [the URI spec](https://tools.ietf.org/html/rfc3986), Tim Berners-Lee
 says a URL looks like this:
 
 ```

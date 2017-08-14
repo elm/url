@@ -5,7 +5,7 @@ module Url.Builder exposing
   )
 
 
-{-| In [the URI spec](https://tools.ietf.org/html/rfc3986), Tim Breners-Lee
+{-| In [the URI spec](https://tools.ietf.org/html/rfc3986), Tim Berners-Lee
 says a URL looks like this:
 
 ```
