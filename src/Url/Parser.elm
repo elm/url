@@ -4,7 +4,9 @@ module Url.Parser exposing
   , (<?>), query
   , fragment
   , parse
-  , parseLocation, preparePath, prepareQuery, prepareFragment
+  , parsePath, Url
+  , parseSegments
+  , preparePath, prepareQuery, prepareFragment
   )
 
 {-| In [the URI spec](https://tools.ietf.org/html/rfc3986), Tim Berners-Lee
@@ -32,8 +34,11 @@ This module is for parsing the `path` part.
 # Fragment
 @docs fragment
 
-# Running Parsers
-@docs parse, parseLocation, preparePath, prepareQuery, prepareFragment
+# Run Parsers
+@docs parse, parsePath, Url
+
+# Low-Level Stuff
+@docs parseSegments, preparePath, prepareQuery, prepareFragment
 
 -}
 
@@ -376,7 +381,7 @@ parse parser pathQueryFragment =
     [i] ->
       case String.indexes "#" pathQueryFragment of
         [j] ->
-          parseLocation
+          parseSegments
             parser
             (preparePath (String.left i pathQueryFragment))
             (prepareQuery (String.slice i j pathQueryFragment))
@@ -389,21 +394,89 @@ parse parser pathQueryFragment =
       Nothing
 
 
+{-| Parse a [`Url`][url] in a single-page app. You provide (1) a parser to
+convert the URL to nice data and (2) a function to handle failure.
 
--- PARSE LOCATIONS
+    import Url.Parser exposing (Parser, Url, int, map, oneOf, parsePath, s, top)
 
+    type Route = Home | Blog Int | NotFound String
 
-{-| This library is primarily used to process [`Location`][loc] values which
-have already split the URL into its distinct segments. The `parseLocation`
-function is designed for working with these `Location` values.
+    route : Parser (Route -> a) a
+    route =
+      oneOf
+        [ map Home top
+        , map Blog (s "blog" </> int)
+        ]
 
-Use `preparePath`, `prepareQuery`, and `prepareFragment` to get the data in
-the right format.
+    parseRoute : Url -> Route
+    parseRoute url =
+      parsePath route NotFound url
 
-[loc]: http://package.elm-lang.org/packages/elm-lang/navigation/latest/Navigation#Location
+    -- /                ==>  Home
+    -- /blog            ==>  NotFound "/blog"
+    -- /blog/42         ==>  Blog 42
+    -- /blog/42/        ==>  Blog 42
+    -- /blog/42#cats    ==>  Blog 42
+    -- /blog/42?q=cats  ==>  Blog 42
+    -- /settings        ==>  NotFound "/settings"
+
+[url]: http://package.elm-lang.org/packages/elm-lang/browser/latest/Browser#Url
+
 -}
-parseLocation : Parser (a -> a) a -> List String -> Dict String (List String) -> Maybe String -> Maybe a
-parseLocation (Parser parser) path query fragment =
+parsePath : Parser (a -> a) a -> (String -> a) -> Url -> a
+parsePath parser notFound { pathname, search, hash } =
+  case parseSegments parser (preparePath pathname) (prepareQuery search) (prepareFragment hash) of
+    Just answer ->
+      answer
+
+    Nothing ->
+      notFound (pathname ++ search ++ hash)
+
+
+{-| This matches the URL type from [`elm-lang/browser`][browser] package.
+It makes it easier to use [`parsePath`](#parsePath) to manage routing in a
+single-page app.
+
+[browser]: http://package.elm-lang.org/packages/elm-lang/browser/latest
+
+**Note:** The fields correspond with the fields in `document.location` as
+described [here](https://developer.mozilla.org/en-US/docs/Web/API/Url).
+-}
+type alias Url =
+  { href : String
+  , host : String
+  , hostname : String
+  , protocol : String
+  , origin : String
+  , port_ : String
+  , pathname : String
+  , search : String
+  , hash : String
+  , username : String
+  , password : String
+  }
+
+
+
+-- LOW-LEVEL PARSE
+
+
+{-| **Prefer to use [`parse`](#parse) or [`parsePath`](#parsePath) instead of
+this function!**
+
+The `parseSegments` function is the core URL parser. It is used to define the
+more convenient `parse` and `parsePath` functions. I decided to expose
+`parseSegments` not because I think folks should be using it directly, but
+because I think it makes the documentation a bit more helpful!
+
+In particular, you need to use [`preparePath`](#preparePath),
+[`prepareQuery`](#prepareQuery), and [`prepareFragment`](#prepareFragment) to
+prepare the arguments to `parseSegments`. Those functions have a bunch of
+documentation, so you can answer questions like “What if I have an extra `/`
+on my path?” more easily.
+-}
+parseSegments : Parser (a -> a) a -> List String -> Dict String (List String) -> Maybe String -> Maybe a
+parseSegments (Parser parser) path query fragment =
   getFirstMatch <| parser <|
     State [] path query fragment identity
 
@@ -430,8 +503,8 @@ getFirstMatch states =
 -- PREPARE PATH
 
 
-{-| When using [`parseLocation`](#parseLocation) to parse a [`Location`][loc],
-this function helps get `location.path` in the right format:
+{-| When using [`parseSegments`](#parseSegments), this function helps get the
+path in the right format:
 
     preparePath "/blog/42/" == [ "blog", "42" ]
     preparePath "/blog/42"  == [ "blog", "42" ]
@@ -439,8 +512,6 @@ this function helps get `location.path` in the right format:
 
 Notice that having a `/` at the beginning or the end does not change the
 output. This means `/a/b` and `/a/b/` will be the same URL with this function.
-
-[loc]: http://package.elm-lang.org/packages/elm-lang/navigation/latest/Navigation#Location
 -}
 preparePath : String -> List String
 preparePath path =
@@ -469,8 +540,8 @@ removeFinalEmpty segments =
 -- PREPARE QUERY
 
 
-{-| When using [`parseLocation`](#parseLocation) to parse a [`Location`][loc],
-this function helps get `location.query` in the right format:
+{-| When using [`parseSegments`](#parseSegments), this function helps get the
+query string in the right format:
 
     import Dict
 
@@ -489,7 +560,6 @@ Notice that:
   - When there are repeat parameters, their order is maintained.
   - Messed up parameters (e.g. no `=`) are skipped.
 
-[loc]: http://package.elm-lang.org/packages/elm-lang/navigation/latest/Navigation#Location
 [pd]: http://package.elm-lang.org/packages/elm-lang/url/latest/Url-Builder#percentDecode
 -}
 prepareQuery : String -> Dict String (List String)
@@ -526,12 +596,12 @@ addToParametersHelp value maybeList =
 -- PREPARE FRAGMENT
 
 
-{-| When using [`parseLocation`](#parseLocation) to parse a [`Location`][loc],
-this function helps get `location.hash` in the right format:
+{-| When using [`parseSegments`](#parseSegments), this function helps get the
+hash in the right format:
 
     prepareFragment ""        == Nothing
     prepareFragment "no-hash" == Nothing
-    prepareFragment "#"       == Just ""
+    prepareFragment "#"       == Nothing
     prepareFragment "#hi"     == Just "hi"
     prepareFragment "#hello"  == Just "hello"
 
@@ -542,6 +612,12 @@ Notice that no `#` means you get `Nothing`.
 prepareFragment : String -> Maybe String
 prepareFragment fragment =
   if String.startsWith "#" fragment then
-    Just (String.dropLeft 1 fragment)
+    case String.dropLeft 1 fragment of
+      "" ->
+        Nothing
+
+      hash ->
+        Just hash
+
   else
     Nothing
