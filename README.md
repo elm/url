@@ -2,7 +2,7 @@
 
 This library has two primary modules:
 
-  - `Url.Builder` to build URLs for HTTP requests
+  - `Url` to build URLs for HTTP requests
   - `Url.Parser` to parse URLs for “routing” in single-page apps (SPAs)
 
 Check out those modules for specific usage examples!
