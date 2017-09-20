@@ -4,7 +4,7 @@ module Url.Parser exposing
   , (<?>), query
   , fragment
   , parse
-  , Segments, Protocol, toSegments, fromSegments
+  , Url, Protocol, toUrl, fromUrl
   )
 
 {-| In [the URI spec](https://tools.ietf.org/html/rfc3986), Tim Berners-Lee
@@ -33,7 +33,7 @@ This module is for parsing the `path` part.
 @docs fragment
 
 # Run Parsers
-@docs parse, Segments, Protocol, toSegments, fromSegments
+@docs parse, Url, Protocol, toUrl, fromUrl
 
 -}
 
@@ -362,7 +362,7 @@ fragment toFrag =
 -- PARSE
 
 
-{-| Actually run a parser! You provide some [`Segments`](#Segments) that
+{-| Actually run a parser! You provide some [`Url`](#Url) that
 represent a valid URL. From there `parse` runs your parser on the path, query
 parameters, and fragment!
 
@@ -379,7 +379,7 @@ parameters, and fragment!
 
     toRoute : String -> Route
     toRoute url =
-      case Parser.toSegments url of
+      case Parser.toUrl url of
         Nothing ->
           NotFound
 
@@ -401,7 +401,7 @@ to handle the initial URL and any changes.
 
 [fullscreen]: http://package.elm-lang.org/packages/elm-lang/browser/latest#fullscreen
 -}
-parse : Parser (a -> a) a -> Segments -> Maybe a
+parse : Parser (a -> a) a -> Url -> Maybe a
 parse (Parser parser) { path, query, fragment } =
   getFirstMatch <| parser <|
     State [] (preparePath path) (prepareQuery query) fragment identity
@@ -501,7 +501,7 @@ addToParametersHelp value maybeList =
 spec](https://tools.ietf.org/html/rfc3986). Specifically, it does not accept
 the `userinfo` segment you see in email addresses like `tom@example.com`.
 -}
-type alias Segments =
+type alias Url =
   { protocol : Protocol
   , host : String
   , port_ : Maybe Int
@@ -516,23 +516,23 @@ type alias Segments =
 type Protocol = Http | Https
 
 
-{-| Attempt to break a URL up into [`Segments`](#Segments). This is useful in
+{-| Attempt to break a URL up into [`Url`](#Url). This is useful in
 single-page apps when you want to parse certain chunks of a URL to figure out
 what to show on screen.
 
-    toSegments "https://example.com:443"
+    toUrl "https://example.com:443"
     -- Just
     --   { protocol = Https, host = "example.com", port = Just 443
     --   , path = "/", query = Nothing, fragment = Nothing
     --   }
 
-    toSegments "https://example.com/hats?q=top"
+    toUrl "https://example.com/hats?q=top"
     -- Just
     --   { protocol = Https, host = "example.com", port = Nothing
     --   , path = "/hats", query = Just "q=top", fragment = Nothing
     --   }
 
-    toSegments "http://example.com/core/List/#map"
+    toUrl "http://example.com/core/List/#map"
     -- Just
     --   { protocol = Http, host = "example.com", port = Nothing
     --   , path = "/core/List/", query = Nothing, fragment = Just "map"
@@ -540,12 +540,12 @@ what to show on screen.
 
 The conversion to segments can fail in some cases as well:
 
-    toSegments "example.com:443"        == Nothing  -- no protocol
-    toSegments "http://tom@example.com" == Nothing  -- userinfo disallowed
-    toSegments "http://#cats"           == Nothing  -- no host
+    toUrl "example.com:443"        == Nothing  -- no protocol
+    toUrl "http://tom@example.com" == Nothing  -- userinfo disallowed
+    toUrl "http://#cats"           == Nothing  -- no host
 -}
-toSegments : String -> Maybe Segments
-toSegments string =
+toUrl : String -> Maybe Url
+toUrl string =
   if String.startsWith "http://" string then
     chompAfterProtocol Http (String.dropLeft 7 string)
 
@@ -556,7 +556,7 @@ toSegments string =
     Nothing
 
 
-chompAfterProtocol : Protocol -> String -> Maybe Segments
+chompAfterProtocol : Protocol -> String -> Maybe Url
 chompAfterProtocol protocol string =
   if String.isEmpty string then
     Nothing
@@ -569,7 +569,7 @@ chompAfterProtocol protocol string =
         chompBeforeFragment protocol (Just (String.dropLeft i string)) (String.left i string)
 
 
-chompBeforeFragment : Protocol -> Maybe String -> String -> Maybe Segments
+chompBeforeFragment : Protocol -> Maybe String -> String -> Maybe Url
 chompBeforeFragment protocol fragment string =
   if String.isEmpty string then
     Nothing
@@ -582,7 +582,7 @@ chompBeforeFragment protocol fragment string =
         chompBeforeQuery protocol (Just (String.dropLeft i string)) fragment (String.left i string)
 
 
-chompBeforeQuery : Protocol -> Maybe String -> Maybe String -> String -> Maybe Segments
+chompBeforeQuery : Protocol -> Maybe String -> Maybe String -> String -> Maybe Url
 chompBeforeQuery protocol query fragment string =
   if String.isEmpty string then
     Nothing
@@ -595,14 +595,14 @@ chompBeforeQuery protocol query fragment string =
         chompBeforePath protocol (String.dropLeft (i - 1) string) query fragment (String.left i string)
 
 
-chompBeforePath : Protocol -> String -> Maybe String -> Maybe String -> String -> Maybe Segments
+chompBeforePath : Protocol -> String -> Maybe String -> Maybe String -> String -> Maybe Url
 chompBeforePath protocol path query fragment string =
   if String.isEmpty string || String.contains "@" string then
     Nothing
   else
     case String.indexes ":" string of
       [] ->
-        Just <| Segments protocol string Nothing path query fragment
+        Just <| Url protocol string Nothing path query fragment
 
       i :: [] ->
         case String.toInt (String.dropLeft i string) of
@@ -610,16 +610,16 @@ chompBeforePath protocol path query fragment string =
             Nothing
 
           port_ ->
-            Just <| Segments protocol (String.left i string) port_ path query fragment
+            Just <| Url protocol (String.left i string) port_ path query fragment
 
       _ ->
         Nothing
 
 
-{-| Turn [`Segments`](#Segments) back into a `String`.
+{-| Turn [`Url`](#Url) back into a `String`.
 -}
-fromSegments : Segments -> String
-fromSegments { protocol, host, port_, path, query, fragment } =
+fromUrl : Url -> String
+fromUrl { protocol, host, port_, path, query, fragment } =
   let
     http =
       case protocol of
