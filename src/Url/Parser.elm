@@ -4,9 +4,7 @@ module Url.Parser exposing
   , (<?>), query
   , fragment
   , parse
-  , parsePath, Url
-  , parseSegments
-  , preparePath, prepareQuery, prepareFragment
+  , Segments, Protocol, toSegments, fromSegments
   )
 
 {-| In [the URI spec](https://tools.ietf.org/html/rfc3986), Tim Berners-Lee
@@ -35,10 +33,7 @@ This module is for parsing the `path` part.
 @docs fragment
 
 # Run Parsers
-@docs parse, parsePath, Url
-
-# Low-Level Stuff
-@docs parseSegments, preparePath, prepareQuery, prepareFragment
+@docs parse, Segments, Protocol, toSegments, fromSegments
 
 -}
 
@@ -81,9 +76,10 @@ type alias State value =
 
 {-| Parse a segment of the path as a `String`.
 
-    parse string "/alice/" == Just "alice"
-    parse string "/bob"    == Just "bob"
-    parse string "/42/"    == Just "42"
+    -- /alice/  ==>  Just "alice"
+    -- /bob     ==>  Just "bob"
+    -- /42/     ==>  Just "42"
+    -- /        ==>  Nothing
 -}
 string : Parser (String -> a) a
 string =
@@ -92,9 +88,10 @@ string =
 
 {-| Parse a segment of the path as an `Int`.
 
-    parse int "/alice/" == Nothing
-    parse int "/bob"    == Nothing
-    parse int "/42/"    == Just 42
+    -- /alice/  ==>  Nothing
+    -- /bob     ==>  Nothing
+    -- /42/     ==>  Just 42
+    -- /        ==>  Nothing
 -}
 int : Parser (Int -> a) a
 int =
@@ -104,8 +101,12 @@ int =
 {-| Parse a segment of the path if it matches a given string. It is almost
 always used with [`</>`](#</>) or [`oneOf`](#oneOf). For example:
 
-    parse (s "blog" </> int) "/blog/42" == Just 42
-    parse (s "blog" </> int) "/tree/42" == Nothing
+    blog : Parser (String -> a) a
+    blog =
+      s "blog" </> int
+
+    -- /blog/42  ==>  Just 42
+    -- /tree/42  ==>  Nothing
 
 The path segment must be an exact match!
 -}
@@ -127,6 +128,7 @@ s str =
 {-| Create a custom path segment parser. Here is how it is used to define the
 `int` parser:
 
+    int : Parser (Int -> a) a
     int =
       custom "NUMBER" String.toInt
 
@@ -166,19 +168,19 @@ custom tipe stringToSomething =
     blog =
       s "blog" </> int
 
-    -- parse blog "/blog/35/"  ==  Just 35
-    -- parse blog "/blog/42"   ==  Just 42
-    -- parse blog "/blog/"     ==  Nothing
-    -- parse blog "/42/"       ==  Nothing
+    -- /blog/35/  ==>  Just 35
+    -- /blog/42   ==>  Just 42
+    -- /blog/     ==>  Nothing
+    -- /42/       ==>  Nothing
 
     search : Parser (String -> a) a
     search =
       s "search" </> string
 
-    -- parse search "/search/cats/"  ==  Just "cats"
-    -- parse search "/search/frog"   ==  Just "frog"
-    -- parse search "/search/"       ==  Nothing
-    -- parse search "/cats/"         ==  Nothing
+    -- /search/cats/  ==>  Just "cats"
+    -- /search/frog   ==>  Just "frog"
+    -- /search/       ==>  Nothing
+    -- /cats/         ==>  Nothing
 -}
 (</>) : Parser a b -> Parser b c -> Parser a c
 (</>) (Parser parseBefore) (Parser parseAfter) =
@@ -188,19 +190,19 @@ custom tipe stringToSomething =
 
 {-| Transform a path parser.
 
-    type alias Comment = { author : String, id : Int }
+    type alias Comment = { user : String, id : Int }
 
-    rawComment : Parser (String -> Int -> a) a
-    rawComment =
+    userAndId : Parser (String -> Int -> a) a
+    userAndId =
       s "user" </> string </> s "comments" </> int
 
     comment : Parser (Comment -> a) a
     comment =
-      map Comment rawComment
+      map Comment userAndId
 
-    -- parse comment "/user/bob/comments/42" == Just { author = "bob", id = 42 }
-    -- parse comment "/user/tom/comments/35" == Just { author = "tom", id = 35 }
-    -- parse comment "/user/sam/"            == Nothing
+    -- /user/bob/comments/42  ==>  Just { user = "bob", id = 42 }
+    -- /user/tom/comments/35  ==>  Just { user = "tom", id = 35 }
+    -- /user/sam/             ==>  Nothing
 -}
 map : a -> Parser a b -> Parser (b -> c) c
 map subValue (Parser parse) =
@@ -231,16 +233,16 @@ mapState func { visited, unvisited, query, fragment, value } =
         , map Comment (s "user" </> string </> s "comments" </> int)
         ]
 
-    -- parse route "/search/cats "         == Just (Search "cats")
-    -- parse route "/search/"              == Nothing
+    -- /search/cats           ==>  Just (Search "cats")
+    -- /search/"              ==>  Nothing
 
-    -- parse route "/blog/42"              == Just (Blog 42)
-    -- parse route "/blog/cats"            == Nothing
+    -- /blog/42               ==>  Just (Blog 42)
+    -- /blog/cats             ==>  Nothing
 
-    -- parse route "/user/sam/"            == Just (User "sam")
-    -- parse route "/user/bob/comments/42" == Just (Comment "bob" 42)
-    -- parse route "/user/tom/comments/35" == Just (Comment "tom" 35)
-    -- parse route "/user/"                == Nothing
+    -- /user/sam/             ==>  Just (User "sam")
+    -- /user/bob/comments/42  ==>  Just (Comment "bob" 42)
+    -- /user/tom/comments/35  ==>  Just (Comment "tom" 35)
+    -- /user/                 ==>  Nothing
 
 If there are multiple parsers that could succeed, the first one wins.
 -}
@@ -252,17 +254,18 @@ oneOf parsers =
 
 {-| A parser that does not consume any path segments.
 
-    type BlogRoute = Overview | Post Int
+    type Route = Overview | Post Int
 
-    blogRoute : Parser (BlogRoute -> a) a
-    blogRoute =
-      oneOf
-        [ map Overview top
-        , map Post (s "post" </> int)
-        ]
+    blog : Parser (BlogRoute -> a) a
+    blog =
+      s "blog" </>
+        oneOf
+          [ map Overview top
+          , map Post (s "post" </> int)
+          ]
 
-    -- parse (s "blog" </> blogRoute) "/blog/"        == Just Overview
-    -- parse (s "blog" </> blogRoute) "/blog/post/42" == Just (Post 42)
+    -- /blog/         ==>  Just Overview
+    -- /blog/post/42  ==>  Just (Post 42)
 -}
 top : Parser a a
 top =
@@ -281,19 +284,22 @@ your blog website:
     import Url.Parser.Query as Query
 
     type Route
-      = BlogList (Result Query.Problem String)
-      | BlogPost Int
+      = Overview (Result Query.Problem String)
+      | Post Int
 
-    route : Parser (Route -> a) a
-    route =
+    blog : Parser (Route -> a) a
+    blog =
       oneOf
-        [ map BlogList (s "blog" <?> Query.string "search")
-        , map BlogPost (s "blog" </> int)
+        [ map Overview (s "blog" <?> Query.string "q")
+        , map Post (s "blog" </> int)
         ]
 
-    -- parse route "/blog/"             == Just (BlogList (Err Query.NotFound))
-    -- parse route "/blog/?search=cats" == Just (BlogList (Ok "cats"))
-    -- parse route "/blog/42"           == Just (BlogPost 42)
+    -- /blog/           ==>  Just (Overview (Err Query.NotFound))
+    -- /blog/?q=cats    ==>  Just (Overview (Ok "cats"))
+    -- /blog/cats       ==>  Nothing
+    -- /blog/42         ==>  Just (Post 42)
+    -- /blog/42?q=cats  ==>  Just (Post 42)
+    -- /blog/42/cats    ==>  Nothing
 -}
 (<?>) : Parser a (query -> b) -> Query.Parser query -> Parser a b
 (<?>) parser queryParser =
@@ -329,7 +335,7 @@ query (Q.Parser queryParser) =
 be handy for handling links to DOM elements within a page. Pages like this one!
 
     type alias Docs =
-      { moduleName : String
+      { name : String
       , value : Maybe String
       }
 
@@ -337,10 +343,12 @@ be handy for handling links to DOM elements within a page. Pages like this one!
     docs =
       map Docs (string </> fragment identity)
 
-    -- parse docs "/List/#map" == Just (Docs "List" (Just "map"))
-    -- parse docs "/List#map"  == Just (Docs "List" (Just "map"))
-    -- parse docs "/List#"     == Just (Docs "List" (Just ""))
-    -- parse docs "/List"      == Just (Docs "List" Nothing)
+    -- /List/map   ==>  Nothing
+    -- /List/#map  ==>  Just (Docs "List" (Just "map"))
+    -- /List#map   ==>  Just (Docs "List" (Just "map"))
+    -- /List#      ==>  Just (Docs "List" (Just ""))
+    -- /List       ==>  Just (Docs "List" Nothing)
+    -- /           ==>  Nothing
 
 -}
 fragment : (Maybe String -> fragment) -> Parser (fragment -> a) a
@@ -354,52 +362,13 @@ fragment toFrag =
 -- PARSE
 
 
-{-| Actually run a parser! Remember how at the beginning of the docs I said
-[the URI spec](https://tools.ietf.org/html/rfc3986) defines a URL like this:
+{-| Actually run a parser! You provide some [`Segments`](#Segments) that
+represent a valid URL. From there `parse` runs your parser on the path, query
+parameters, and fragment!
 
-```
-  https://example.com:8042/over/there?name=ferret#nose
-  \___/   \______________/\_________/ \_________/ \__/
-    |            |            |            |        |
-  scheme     authority       path        query   fragment
-```
+    import Url.Parser as Parser exposing (Parser, int, map, oneOf, s, top)
 
-The `parse` function is expecting the `path`, `query`, and `fragment`.
-Rules include:
-
-  - No `scheme`
-  - No `authority`
-  - The path can start with a `/` or not. It does not matter.
-  - The path can end with a `/` or not. It does not matter.
-  - All query parameters must have an `=`, like `key=value`.
-  - If there is more than one `?` or `#` it fails.
-
--}
-parse : Parser (a -> a) a -> String -> Maybe a
-parse parser pathQueryFragment =
-  case String.indexes "?" pathQueryFragment of
-    [i] ->
-      case String.indexes "#" pathQueryFragment of
-        [j] ->
-          parseSegments
-            parser
-            (preparePath (String.left i pathQueryFragment))
-            (prepareQuery (String.slice i j pathQueryFragment))
-            (prepareFragment (String.dropLeft j pathQueryFragment))
-
-        _ ->
-          Nothing
-
-    _ ->
-      Nothing
-
-
-{-| Parse a [`Url`][url] in a single-page app. You provide (1) a parser to
-convert the URL to nice data and (2) a function to handle failure.
-
-    import Url.Parser exposing (Parser, Url, int, map, oneOf, parsePath, s, top)
-
-    type Route = Home | Blog Int | NotFound String
+    type Route = Home | Blog Int | NotFound
 
     route : Parser (Route -> a) a
     route =
@@ -408,77 +377,34 @@ convert the URL to nice data and (2) a function to handle failure.
         , map Blog (s "blog" </> int)
         ]
 
-    parseRoute : Url -> Route
-    parseRoute url =
-      parsePath route NotFound url
+    toRoute : String -> Route
+    toRoute url =
+      case Parser.toSegments url of
+        Nothing ->
+          NotFound
 
-    -- /                ==>  Home
-    -- /blog            ==>  NotFound "/blog"
-    -- /blog/42         ==>  Blog 42
-    -- /blog/42/        ==>  Blog 42
-    -- /blog/42#cats    ==>  Blog 42
-    -- /blog/42?q=cats  ==>  Blog 42
-    -- /settings        ==>  NotFound "/settings"
+        Just segments ->
+          Maybe.withDefault NotFound (Parser.parse route segments)
 
-[url]: http://package.elm-lang.org/packages/elm-lang/browser/latest/Browser#Url
+    -- toRoute "/blog/42"                            ==  NotFound
+    -- toRoute "https://example.com/"                ==  Home
+    -- toRoute "https://example.com/blog"            ==  NotFound
+    -- toRoute "https://example.com/blog/42"         ==  Blog 42
+    -- toRoute "https://example.com/blog/42/"        ==  Blog 42
+    -- toRoute "https://example.com/blog/42#cats"    ==  Blog 42
+    -- toRoute "https://example.com/blog/42?q=cats"  ==  Blog 42
+    -- toRoute "https://example.com/settings"        ==  NotFound
 
+Functions like `toRoute` are useful when creating single-page apps with
+[`Browser.fullscreen`][fullscreen]. I use them in `init` and `onNavigation`
+to handle the initial URL and any changes.
+
+[fullscreen]: http://package.elm-lang.org/packages/elm-lang/browser/latest#fullscreen
 -}
-parsePath : Parser (a -> a) a -> (String -> a) -> Url -> a
-parsePath parser notFound { pathname, search, hash } =
-  case parseSegments parser (preparePath pathname) (prepareQuery search) (prepareFragment hash) of
-    Just answer ->
-      answer
-
-    Nothing ->
-      notFound (pathname ++ search ++ hash)
-
-
-{-| This matches the URL type from [`elm-lang/browser`][browser] package.
-It makes it easier to use [`parsePath`](#parsePath) to manage routing in a
-single-page app.
-
-[browser]: http://package.elm-lang.org/packages/elm-lang/browser/latest
-
-**Note:** The fields correspond with the fields in `document.location` as
-described [here](https://developer.mozilla.org/en-US/docs/Web/API/Url).
--}
-type alias Url =
-  { href : String
-  , host : String
-  , hostname : String
-  , protocol : String
-  , origin : String
-  , port_ : String
-  , pathname : String
-  , search : String
-  , hash : String
-  , username : String
-  , password : String
-  }
-
-
-
--- LOW-LEVEL PARSE
-
-
-{-| **Prefer to use [`parse`](#parse) or [`parsePath`](#parsePath) instead of
-this function!**
-
-The `parseSegments` function is the core URL parser. It is used to define the
-more convenient `parse` and `parsePath` functions. I decided to expose
-`parseSegments` not because I think folks should be using it directly, but
-because I think it makes the documentation a bit more helpful!
-
-In particular, you need to use [`preparePath`](#preparePath),
-[`prepareQuery`](#prepareQuery), and [`prepareFragment`](#prepareFragment) to
-prepare the arguments to `parseSegments`. Those functions have a bunch of
-documentation, so you can answer questions like “What if I have an extra `/`
-on my path?” more easily.
--}
-parseSegments : Parser (a -> a) a -> List String -> Dict String (List String) -> Maybe String -> Maybe a
-parseSegments (Parser parser) path query fragment =
+parse : Parser (a -> a) a -> Segments -> Maybe a
+parse (Parser parser) { path, query, fragment } =
   getFirstMatch <| parser <|
-    State [] path query fragment identity
+    State [] (preparePath path) (prepareQuery query) fragment identity
 
 
 getFirstMatch : List (State a) -> Maybe a
@@ -503,16 +429,6 @@ getFirstMatch states =
 -- PREPARE PATH
 
 
-{-| When using [`parseSegments`](#parseSegments), this function helps get the
-path in the right format:
-
-    preparePath "/blog/42/" == [ "blog", "42" ]
-    preparePath "/blog/42"  == [ "blog", "42" ]
-    preparePath "blog/42"   == [ "blog", "42" ]
-
-Notice that having a `/` at the beginning or the end does not change the
-output. This means `/a/b` and `/a/b/` will be the same URL with this function.
--}
 preparePath : String -> List String
 preparePath path =
   case String.split "/" path of
@@ -540,31 +456,14 @@ removeFinalEmpty segments =
 -- PREPARE QUERY
 
 
-{-| When using [`parseSegments`](#parseSegments), this function helps get the
-query string in the right format:
+prepareQuery : Maybe String -> Dict String (List String)
+prepareQuery maybeQuery =
+  case maybeQuery of
+    Nothing ->
+      Dict.empty
 
-    import Dict
-
-    prepareQuery "search=cat"  == Dict.fromList [ ("search", ["cat"]) ]
-    prepareQuery "?search=cat" == Dict.fromList [ ("search", ["cat"]) ]
-    prepareQuery "?symbol=%23" == Dict.fromList [ ("symbol", ["#"]) ]
-
-    prepareQuery "?x=3&y=4"    == Dict.fromList [ ("x", ["3"]), ("y", ["4"]) ]
-    prepareQuery "?x=3&x=4"    == Dict.fromList [ ("x", ["3","4"]) ]
-    prepareQuery "?debug&x=3"  == Dict.fromList [ ("x", ["3"]) ]
-
-Notice that:
-
-  - Skipping the `?` at the beginning is allowed.
-  - [`percentDecode`][pd] is called on the `k` and `v` parts of a `k=v` pair.
-  - When there are repeat parameters, their order is maintained.
-  - Messed up parameters (e.g. no `=`) are skipped.
-
-[pd]: http://package.elm-lang.org/packages/elm-lang/url/latest/Url-Builder#percentDecode
--}
-prepareQuery : String -> Dict String (List String)
-prepareQuery query =
-  List.foldr addParam Dict.empty (String.split "&" query)
+    Just query ->
+      List.foldr addParam Dict.empty (String.split "&" query)
 
 
 addParam : String -> Dict String (List String) -> Dict String (List String)
@@ -593,31 +492,163 @@ addToParametersHelp value maybeList =
 
 
 
--- PREPARE FRAGMENT
+-- URL SEGMENTS
 
 
-{-| When using [`parseSegments`](#parseSegments), this function helps get the
-hash in the right format:
+{-| The URL segments for webpages served over HTTP or HTTPS.
 
-    prepareFragment ""        == Nothing
-    prepareFragment "no-hash" == Nothing
-    prepareFragment "#"       == Nothing
-    prepareFragment "#hi"     == Just "hi"
-    prepareFragment "#hello"  == Just "hello"
-
-Notice that no `#` means you get `Nothing`.
-
-[loc]: http://package.elm-lang.org/packages/elm-lang/navigation/latest/Navigation#Location
+**Note:** This is a subset of all the full possibilities listed in [the URI
+spec](https://tools.ietf.org/html/rfc3986). Specifically, it does not accept
+the `userinfo` segment you see in email addresses like `tom@example.com`.
 -}
-prepareFragment : String -> Maybe String
-prepareFragment fragment =
-  if String.startsWith "#" fragment then
-    case String.dropLeft 1 fragment of
-      "" ->
-        Nothing
+type alias Segments =
+  { protocol : Protocol
+  , host : String
+  , port_ : Maybe Int
+  , path : String
+  , query : Maybe String
+  , fragment : Maybe String
+  }
 
-      hash ->
-        Just hash
+
+{-| Is the URL served over a secure connection or not?
+-}
+type Protocol = Http | Https
+
+
+{-| Attempt to break a URL up into [`Segments`](#Segments). This is useful in
+single-page apps when you want to parse certain chunks of a URL to figure out
+what to show on screen.
+
+    toSegments "https://example.com:443"
+    -- Just
+    --   { protocol = Https, host = "example.com", port = Just 443
+    --   , path = "/", query = Nothing, fragment = Nothing
+    --   }
+
+    toSegments "https://example.com/hats?q=top"
+    -- Just
+    --   { protocol = Https, host = "example.com", port = Nothing
+    --   , path = "/hats", query = Just "q=top", fragment = Nothing
+    --   }
+
+    toSegments "http://example.com/core/List/#map"
+    -- Just
+    --   { protocol = Http, host = "example.com", port = Nothing
+    --   , path = "/core/List/", query = Nothing, fragment = Just "map"
+    --   }
+
+The conversion to segments can fail in some cases as well:
+
+    toSegments "example.com:443"        == Nothing  -- no protocol
+    toSegments "http://tom@example.com" == Nothing  -- userinfo disallowed
+    toSegments "http://#cats"           == Nothing  -- no host
+-}
+toSegments : String -> Maybe Segments
+toSegments string =
+  if String.startsWith "http://" string then
+    chompAfterProtocol Http (String.dropLeft 7 string)
+
+  else if String.startsWith "https://" string then
+    chompAfterProtocol Https (String.dropLeft 8 string)
 
   else
     Nothing
+
+
+chompAfterProtocol : Protocol -> String -> Maybe Segments
+chompAfterProtocol protocol string =
+  if String.isEmpty string then
+    Nothing
+  else
+    case String.indexes "#" string of
+      [] ->
+        chompBeforeFragment protocol Nothing string
+
+      i :: _ ->
+        chompBeforeFragment protocol (Just (String.dropLeft i string)) (String.left i string)
+
+
+chompBeforeFragment : Protocol -> Maybe String -> String -> Maybe Segments
+chompBeforeFragment protocol fragment string =
+  if String.isEmpty string then
+    Nothing
+  else
+    case String.indexes "?" string of
+      [] ->
+        chompBeforeQuery protocol Nothing fragment string
+
+      i :: _ ->
+        chompBeforeQuery protocol (Just (String.dropLeft i string)) fragment (String.left i string)
+
+
+chompBeforeQuery : Protocol -> Maybe String -> Maybe String -> String -> Maybe Segments
+chompBeforeQuery protocol query fragment string =
+  if String.isEmpty string then
+    Nothing
+  else
+    case String.indexes "/" string of
+      [] ->
+        chompBeforePath protocol "/" query fragment string
+
+      i :: _ ->
+        chompBeforePath protocol (String.dropLeft (i - 1) string) query fragment (String.left i string)
+
+
+chompBeforePath : Protocol -> String -> Maybe String -> Maybe String -> String -> Maybe Segments
+chompBeforePath protocol path query fragment string =
+  if String.isEmpty string || String.contains "@" string then
+    Nothing
+  else
+    case String.indexes ":" string of
+      [] ->
+        Just <| Segments protocol string Nothing path query fragment
+
+      i :: [] ->
+        case String.toInt (String.dropLeft i string) of
+          Nothing ->
+            Nothing
+
+          port_ ->
+            Just <| Segments protocol (String.left i string) port_ path query fragment
+
+      _ ->
+        Nothing
+
+
+{-| Turn [`Segments`](#Segments) back into a `String`.
+-}
+fromSegments : Segments -> String
+fromSegments { protocol, host, port_, path, query, fragment } =
+  let
+    http =
+      case protocol of
+        Http ->
+          "http://"
+
+        Https ->
+          "https://"
+  in
+  addPort port_ (http ++ host) ++ path
+    |> addPrefixed "?" query
+    |> addPrefixed "#" fragment
+
+
+addPort : Maybe Int -> String -> String
+addPort maybePort starter =
+  case maybePort of
+    Nothing ->
+      starter
+
+    Just port_ ->
+      starter ++ ":" ++ String.fromInt port_
+
+
+addPrefixed : String -> Maybe String -> String -> String
+addPrefixed prefix maybeSegment starter =
+  case maybeSegment of
+    Nothing ->
+      starter
+
+    Just segment ->
+      starter ++ prefix ++ segment
