@@ -571,7 +571,7 @@ chompAfterProtocol protocol string =
         chompBeforeFragment protocol Nothing string
 
       i :: _ ->
-        chompBeforeFragment protocol (Just (String.dropLeft i string)) (String.left i string)
+        chompBeforeFragment protocol (Just (String.dropLeft (i + 1) string)) (String.left i string)
 
 
 chompBeforeFragment : Protocol -> Maybe String -> String -> Maybe Url
@@ -584,7 +584,7 @@ chompBeforeFragment protocol fragment string =
         chompBeforeQuery protocol Nothing fragment string
 
       i :: _ ->
-        chompBeforeQuery protocol (Just (String.dropLeft i string)) fragment (String.left i string)
+        chompBeforeQuery protocol (Just (String.dropLeft (i + 1) string)) fragment (String.left i string)
 
 
 chompBeforeQuery : Protocol -> Maybe String -> Maybe String -> String -> Maybe Url
@@ -597,7 +597,7 @@ chompBeforeQuery protocol query fragment string =
         chompBeforePath protocol "/" query fragment string
 
       i :: _ ->
-        chompBeforePath protocol (String.dropLeft (i - 1) string) query fragment (String.left i string)
+        chompBeforePath protocol (String.dropLeft i string) query fragment (String.left i string)
 
 
 chompBeforePath : Protocol -> String -> Maybe String -> Maybe String -> String -> Maybe Url
@@ -610,7 +610,7 @@ chompBeforePath protocol path query fragment string =
         Just <| Url protocol string Nothing path query fragment
 
       i :: [] ->
-        case String.toInt (String.dropLeft i string) of
+        case String.toInt (String.dropLeft (i + 1) string) of
           Nothing ->
             Nothing
 
