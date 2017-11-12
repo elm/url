@@ -101,7 +101,7 @@ int =
 {-| Parse a segment of the path if it matches a given string. It is almost
 always used with [`</>`](#</>) or [`oneOf`](#oneOf). For example:
 
-    blog : Parser (String -> a) a
+    blog : Parser (Int -> a) a
     blog =
       s "blog" </> int
 
