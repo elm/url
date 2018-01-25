@@ -47,8 +47,8 @@ import Url.Parser.Internal as Q
 -- INFIX TABLE
 
 
-infixr 7 </>
-infixl 8 <?>
+infix right 7 (</>) = slash
+infix left  8 (<?>) = questionMark
 
 
 
@@ -64,8 +64,8 @@ type Parser a b =
 type alias State value =
   { visited : List String
   , unvisited : List String
-  , query : Dict String (List String)
-  , fragment : Maybe String
+  , params : Dict String (List String)
+  , frag : Maybe String
   , value : value
   }
 
@@ -112,14 +112,14 @@ The path segment must be an exact match!
 -}
 s : String -> Parser a a
 s str =
-  Parser <| \{ visited, unvisited, query, fragment, value } ->
+  Parser <| \{ visited, unvisited, params, frag, value } ->
     case unvisited of
       [] ->
         []
 
       next :: rest ->
         if next == str then
-          [ State (next :: visited) rest query fragment value ]
+          [ State (next :: visited) rest params frag value ]
 
         else
           []
@@ -144,7 +144,7 @@ You can use it to define something like “only CSS files” like this:
 -}
 custom : String -> (String -> Maybe a) -> Parser (a -> b) b
 custom tipe stringToSomething =
-  Parser <| \{ visited, unvisited, query, fragment, value } ->
+  Parser <| \{ visited, unvisited, params, frag, value } ->
     case unvisited of
       [] ->
         []
@@ -152,7 +152,7 @@ custom tipe stringToSomething =
       next :: rest ->
         case stringToSomething next of
           Just nextValue ->
-            [ State (next :: visited) rest query fragment (value nextValue) ]
+            [ State (next :: visited) rest params frag (value nextValue) ]
 
           Nothing ->
             []
@@ -182,8 +182,8 @@ custom tipe stringToSomething =
     -- /search/       ==>  Nothing
     -- /cats/         ==>  Nothing
 -}
-(</>) : Parser a b -> Parser b c -> Parser a c
-(</>) (Parser parseBefore) (Parser parseAfter) =
+slash : Parser a b -> Parser b c -> Parser a c
+slash (Parser parseBefore) (Parser parseAfter) =
   Parser <| \state ->
     List.concatMap parseAfter (parseBefore state)
 
@@ -205,15 +205,15 @@ custom tipe stringToSomething =
     -- /user/sam/             ==>  Nothing
 -}
 map : a -> Parser a b -> Parser (b -> c) c
-map subValue (Parser parse) =
-  Parser <| \{ visited, unvisited, query, fragment, value } ->
-    List.map (mapState value) <| parse <|
-      State visited unvisited query fragment subValue
+map subValue (Parser parseArg) =
+  Parser <| \{ visited, unvisited, params, frag, value } ->
+    List.map (mapState value) <| parseArg <|
+      State visited unvisited params frag subValue
 
 
 mapState : (a -> b) -> State a -> State b
-mapState func { visited, unvisited, query, fragment, value } =
-  State visited unvisited query fragment (func value)
+mapState func { visited, unvisited, params, frag, value } =
+  State visited unvisited params frag (func value)
 
 
 {-| Try a bunch of different path parsers.
@@ -301,9 +301,9 @@ your blog website:
     -- /blog/42?q=cats  ==>  Just (Post 42)
     -- /blog/42/cats    ==>  Nothing
 -}
-(<?>) : Parser a (query -> b) -> Query.Parser query -> Parser a b
-(<?>) parser queryParser =
-  parser </> query queryParser
+questionMark : Parser a (query -> b) -> Query.Parser query -> Parser a b
+questionMark parser queryParser =
+  slash parser (query queryParser)
 
 
 {-| The [`Url.Parser.Query`](Url-Parser-Query) module defines its own
@@ -322,8 +322,8 @@ segments.
 -}
 query : Query.Parser query -> Parser (query -> a) a
 query (Q.Parser queryParser) =
-  Parser <| \{ visited, unvisited, query, fragment, value } ->
-    [ State visited unvisited query fragment (value (queryParser query))
+  Parser <| \{ visited, unvisited, params, frag, value } ->
+    [ State visited unvisited params frag (value (queryParser params))
     ]
 
 
@@ -353,8 +353,8 @@ be handy for handling links to DOM elements within a page. Pages like this one!
 -}
 fragment : (Maybe String -> fragment) -> Parser (fragment -> a) a
 fragment toFrag =
-  Parser <| \{ visited, unvisited, query, fragment, value } ->
-    [ State visited unvisited query fragment (value (toFrag fragment))
+  Parser <| \{ visited, unvisited, params, frag, value } ->
+    [ State visited unvisited params frag (value (toFrag frag))
     ]
 
 
@@ -402,9 +402,9 @@ the initial URL and any changes.
 [fs]: http://package.elm-lang.org/packages/elm-lang/browser/latest#fullscreen
 -}
 parse : Parser (a -> a) a -> Url -> Maybe a
-parse (Parser parser) { path, query, fragment } =
+parse (Parser parser) url =
   getFirstMatch <| parser <|
-    State [] (preparePath path) (prepareQuery query) fragment identity
+    State [] (preparePath url.path) (prepareQuery url.query) url.fragment identity
 
 
 getFirstMatch : List (State a) -> Maybe a
@@ -462,20 +462,25 @@ prepareQuery maybeQuery =
     Nothing ->
       Dict.empty
 
-    Just query ->
-      List.foldr addParam Dict.empty (String.split "&" query)
+    Just qry ->
+      List.foldr addParam Dict.empty (String.split "&" qry)
 
 
 addParam : String -> Dict String (List String) -> Dict String (List String)
 addParam segment dict =
   case String.split "=" segment of
     [rawKey, rawValue] ->
-      case Maybe.map2 (,) (percentDecode rawKey) (percentDecode rawValue) of
+      case percentDecode rawKey of
         Nothing ->
           dict
 
-        Just (key, value) ->
-          Dict.update key (addToParametersHelp value) dict
+        Just key ->
+          case percentDecode rawValue of
+            Nothing ->
+              dict
+
+            Just value ->
+              Dict.update key (addToParametersHelp value) dict
 
     _ ->
       dict
@@ -550,72 +555,72 @@ The conversion to segments can fail in some cases as well:
     toUrl "http://#cats"           == Nothing  -- no host
 -}
 toUrl : String -> Maybe Url
-toUrl string =
-  if String.startsWith "http://" string then
-    chompAfterProtocol Http (String.dropLeft 7 string)
+toUrl str =
+  if String.startsWith "http://" str then
+    chompAfterProtocol Http (String.dropLeft 7 str)
 
-  else if String.startsWith "https://" string then
-    chompAfterProtocol Https (String.dropLeft 8 string)
+  else if String.startsWith "https://" str then
+    chompAfterProtocol Https (String.dropLeft 8 str)
 
   else
     Nothing
 
 
 chompAfterProtocol : Protocol -> String -> Maybe Url
-chompAfterProtocol protocol string =
-  if String.isEmpty string then
+chompAfterProtocol protocol str =
+  if String.isEmpty str then
     Nothing
   else
-    case String.indexes "#" string of
+    case String.indexes "#" str of
       [] ->
-        chompBeforeFragment protocol Nothing string
+        chompBeforeFragment protocol Nothing str
 
       i :: _ ->
-        chompBeforeFragment protocol (Just (String.dropLeft (i + 1) string)) (String.left i string)
+        chompBeforeFragment protocol (Just (String.dropLeft (i + 1) str)) (String.left i str)
 
 
 chompBeforeFragment : Protocol -> Maybe String -> String -> Maybe Url
-chompBeforeFragment protocol fragment string =
-  if String.isEmpty string then
+chompBeforeFragment protocol frag str =
+  if String.isEmpty str then
     Nothing
   else
-    case String.indexes "?" string of
+    case String.indexes "?" str of
       [] ->
-        chompBeforeQuery protocol Nothing fragment string
+        chompBeforeQuery protocol Nothing frag str
 
       i :: _ ->
-        chompBeforeQuery protocol (Just (String.dropLeft (i + 1) string)) fragment (String.left i string)
+        chompBeforeQuery protocol (Just (String.dropLeft (i + 1) str)) frag (String.left i str)
 
 
 chompBeforeQuery : Protocol -> Maybe String -> Maybe String -> String -> Maybe Url
-chompBeforeQuery protocol query fragment string =
-  if String.isEmpty string then
+chompBeforeQuery protocol params frag str =
+  if String.isEmpty str then
     Nothing
   else
-    case String.indexes "/" string of
+    case String.indexes "/" str of
       [] ->
-        chompBeforePath protocol "/" query fragment string
+        chompBeforePath protocol "/" params frag str
 
       i :: _ ->
-        chompBeforePath protocol (String.dropLeft i string) query fragment (String.left i string)
+        chompBeforePath protocol (String.dropLeft i str) params frag (String.left i str)
 
 
 chompBeforePath : Protocol -> String -> Maybe String -> Maybe String -> String -> Maybe Url
-chompBeforePath protocol path query fragment string =
-  if String.isEmpty string || String.contains "@" string then
+chompBeforePath protocol path params frag str =
+  if String.isEmpty str || String.contains "@" str then
     Nothing
   else
-    case String.indexes ":" string of
+    case String.indexes ":" str of
       [] ->
-        Just <| Url protocol string Nothing path query fragment
+        Just <| Url protocol str Nothing path params frag
 
       i :: [] ->
-        case String.toInt (String.dropLeft (i + 1) string) of
+        case String.toInt (String.dropLeft (i + 1) str) of
           Nothing ->
             Nothing
 
           port_ ->
-            Just <| Url protocol (String.left i string) port_ path query fragment
+            Just <| Url protocol (String.left i str) port_ path params frag
 
       _ ->
         Nothing
@@ -624,19 +629,19 @@ chompBeforePath protocol path query fragment string =
 {-| Turn [`Url`](#Url) back into a `String`.
 -}
 fromUrl : Url -> String
-fromUrl { protocol, host, port_, path, query, fragment } =
+fromUrl url =
   let
     http =
-      case protocol of
+      case url.protocol of
         Http ->
           "http://"
 
         Https ->
           "https://"
   in
-  addPort port_ (http ++ host) ++ path
-    |> addPrefixed "?" query
-    |> addPrefixed "#" fragment
+  addPort url.port_ (http ++ url.host) ++ url.path
+    |> addPrefixed "?" url.query
+    |> addPrefixed "#" url.fragment
 
 
 addPort : Maybe Int -> String -> String

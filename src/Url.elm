@@ -188,8 +188,8 @@ Writing `int key n` is the same as writing `string key (String.fromInt n)`.
 So this is just a convenience function, making your code a bit shorter!
 -}
 int : String -> Int -> QueryParameter
-int key int =
-  QueryParameter (percentEncode key) (String.fromInt int)
+int key value =
+  QueryParameter (percentEncode key) (String.fromInt value)
 
 
 {-| Convert a list of query parameters to a percent-encoded query. This

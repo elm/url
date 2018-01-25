@@ -66,8 +66,8 @@ string key =
       [] ->
         Err NotFound
 
-      [string] ->
-        Ok string
+      [str] ->
+        Ok str
 
       _ ->
         Err (TooMany stringList)
@@ -95,10 +95,10 @@ int key =
       [] ->
         Err NotFound
 
-      [string] ->
-        case String.toInt string of
+      [str] ->
+        case String.toInt str of
           Nothing ->
-            Err (Invalid string)
+            Err (Invalid str)
 
           Just n ->
             Ok n
@@ -134,10 +134,10 @@ enum key dict =
       [] ->
         Err NotFound
 
-      [string] ->
-        case Dict.get string dict of
+      [str] ->
+        case Dict.get str dict of
           Nothing ->
-            Err (Invalid string)
+            Err (Invalid str)
 
           Just value ->
             Ok value
