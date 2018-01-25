@@ -1,7 +1,7 @@
 {
     "type": "package",
     "name": "elm-lang/url",
-    "summary": "Create and parse URLs. Useful for HTTP and \"routing\" in single-page apps (SPAs)",
+    "summary": "Create and parse URLs. Use for HTTP and \"routing\" in single-page apps (SPAs)",
     "license": "BSD-3-Clause",
     "version": "1.0.0",
     "exposed-modules": [
