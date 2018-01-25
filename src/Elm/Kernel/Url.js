@@ -1,6 +1,6 @@
 /*
 
-import Maybe exposing ( Maybe(Just,Nothing) )
+import Maybe exposing (Just, Nothing)
 
 */
 
