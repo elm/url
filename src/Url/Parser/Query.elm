@@ -1,5 +1,5 @@
 module Url.Parser.Query exposing
-  ( Parser, string, int, enum, Problem(..), custom
+  ( Parser, string, int, enum, custom
   , map, map2, map3, map4, map5, map6, map7, map8
   )
 
@@ -20,7 +20,7 @@ query parameter has the format `key=value` and is separated from the next
 parameter by the `&` character.
 
 # Parse Query Parameters
-@docs Parser, string, int, enum, Problem, custom
+@docs Parser, string, int, enum, custom
 
 # Mapping
 @docs map, map2, map3, map4, map5, map6, map7, map8
@@ -47,78 +47,69 @@ type alias Parser a =
 
 {-| Handle `String` parameters.
 
-    search : Parser (Result Problem String)
+    search : Parser (Maybe String)
     search =
       string "search"
 
-    -- ?search=cats             == Ok "cats"
-    -- ?search=42               == Ok "42"
-    -- ?branch=left             == Err NotFound
-    -- ?search=cats&search=dogs == Err (TooMany ["cats","dogs"])
+    -- ?search=cats             == Just "cats"
+    -- ?search=42               == Just "42"
+    -- ?branch=left             == Nothing
+    -- ?search=cats&search=dogs == Nothing
 
 Check out [`custom`](#custom) if you need to handle multiple `search`
 parameters for some reason.
 -}
-string : String -> Parser (Result Problem String)
+string : String -> Parser (Maybe String)
 string key =
   custom key <| \stringList ->
     case stringList of
-      [] ->
-        Err NotFound
-
       [str] ->
-        Ok str
+        Just str
 
       _ ->
-        Err (TooMany stringList)
+        Nothing
 
 
 {-| Handle `Int` parameters. Maybe you want to show paginated search results:
 
-    page : Parser (Result Problem Int)
+    page : Parser (Maybe Int)
     page =
       int "page"
 
-    -- ?page=2        == Ok 2
-    -- ?page=17       == Ok 17
-    -- ?page=two      == Err (Invalid "two")
-    -- ?sort=date     == Err NotFound
-    -- ?page=2&page=3 == Err (TooMany ["2","3"])
+    -- ?page=2        == Just 2
+    -- ?page=17       == Just 17
+    -- ?page=two      == Nothing
+    -- ?sort=date     == Nothing
+    -- ?page=2&page=3 == Nothing
 
 Check out [`custom`](#custom) if you need to handle multiple `page` parameters
 or something like that.
 -}
-int : String -> Parser (Result Problem Int)
+int : String -> Parser (Maybe Int)
 int key =
   custom key <| \stringList ->
     case stringList of
-      [] ->
-        Err NotFound
-
       [str] ->
-        case String.toInt str of
-          Nothing ->
-            Err (Invalid str)
-
-          Just n ->
-            Ok n
+        String.toInt str
 
       _ ->
-        Err (TooMany stringList)
+        Nothing
 
 
 {-| Handle enumerated parameters. Maybe you want a true-or-false parameter:
 
     import Dict
 
-    debug : Parser (Result Problem Bool)
+    debug : Parser (Maybe Bool)
     debug =
       enum "debug" (Dict.fromList [ ("true", True), ("false", False) ])
 
-    -- ?debug=true   == Ok True
-    -- ?debug=false  == Ok False
-    -- ?debug=1      == Err (Invalid "1")
-    -- ?debug=0      == Err (Invalid "0")
+    -- ?debug=true            == Just True
+    -- ?debug=false           == Just False
+    -- ?debug=1               == Nothing
+    -- ?debug=0               == Nothing
+    -- ?true=true             == Nothing
+    -- ?debug=true&debug=true == Nothing
 
 You could add `0` and `1` to the dictionary if you want to handle those as
 well. You can also use [`map`](#map) to say `map (Result.withDefault False) debug`
@@ -127,49 +118,15 @@ to get a parser of type `Parser Bool` that swallows any errors and defaults to
 
 **Note:** Parameters like `?debug` with no `=` are not supported by this library.
 -}
-enum : String -> Dict.Dict String a -> Parser (Result Problem a)
+enum : String -> Dict.Dict String a -> Parser (Maybe a)
 enum key dict =
   custom key <| \stringList ->
     case stringList of
-      [] ->
-        Err NotFound
-
       [str] ->
-        case Dict.get str dict of
-          Nothing ->
-            Err (Invalid str)
-
-          Just value ->
-            Ok value
+        Dict.get str dict
 
       _ ->
-        Err (TooMany stringList)
-
-
-
--- PROBLEMS
-
-
-{-| The [`string`](#string), [`int`](#int), and [`enum`](#enum) parsers may
-fail for a few reasons.
-
-  - `NotFound` means there was no parameter with that name.
-  - `Invalid` means the parameter was found, but the value was not valid.
-  - `TooMany` means Q found more than one paramater with that name!
-
-If you actually *want* more than one parameter with the same name, check out
-the [`custom`](#custom) function below!
-
-And if you want to ignore your problems and hope everything turns out okay, you
-can write code like this:
-
-    map (Result.withDefault 1) (int "page")
-
--}
-type Problem
-  = NotFound
-  | Invalid String
-  | TooMany (List String)
+        Nothing
 
 
 
@@ -186,6 +143,11 @@ posts on screen at once. You could say:
     posts : Parser (Maybe (List Int))
     posts =
       custom "post" (List.maybeMap String.toInt)
+
+    -- ?post=2        == [2]
+    -- ?post=2&post=7 == [2, 7]
+    -- ?post=2&post=x == [2]
+    -- ?hats=2        == []
 -}
 custom : String -> (List String -> a) -> Parser a
 custom key func =
