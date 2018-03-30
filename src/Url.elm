@@ -34,6 +34,9 @@ import Elm.Kernel.Url
 
 
 
+-- BUILDERS
+
+
 {-| Create an absolute URL:
 
     absolute [] []
@@ -104,6 +107,10 @@ crossOrigin prePath pathSegments parameters =
   prePath ++ "/" ++ String.join "/" pathSegments ++ toQuery parameters
 
 
+
+-- CUSTOM BUILDER
+
+
 {-| Specify whether a [`custom`](#custom) URL is absolute, relative, or
 cross-origin.
 -}
@@ -152,7 +159,7 @@ rootToPrePath root =
       ""
 
     CrossOrigin prePath ->
-      prePath
+      prePath ++ "/"
 
 
 
