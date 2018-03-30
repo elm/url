@@ -17,7 +17,7 @@ says a URL looks like this:
   scheme     authority       path        query   fragment
 ```
 
-This module is for parsing the `path` part.
+This module is primarily for parsing the `path` part.
 
 
 # Primitives
