@@ -176,8 +176,8 @@ map func (Q.Parser a) =
 with something like this:
 
     type alias Query =
-      { search : Result Problem String
-      , page : Result Problem Int
+      { search : Maybe String
+      , page : Maybe Int
       }
 
     query : Parser Query
@@ -197,9 +197,9 @@ could be parsed with something like this:
     import Dict
 
     type alias Query =
-      { search : Result Problem String
-      , page : Result Problem Int
-      , sort : Result Problem Order
+      { search : Maybe String
+      , page : Maybe Int
+      , sort : Maybe Order
       }
 
     type Order = Ascending | Descending

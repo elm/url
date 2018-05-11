@@ -284,7 +284,7 @@ your blog website:
     import Url.Parser.Query as Query
 
     type Route
-      = Overview (Result Query.Problem String)
+      = Overview (Maybe String)
       | Post Int
 
     blog : Parser (Route -> a) a
@@ -294,8 +294,8 @@ your blog website:
         , map Post (s "blog" </> int)
         ]
 
-    -- /blog/           ==>  Just (Overview (Err Query.NotFound))
-    -- /blog/?q=cats    ==>  Just (Overview (Ok "cats"))
+    -- /blog/           ==>  Just (Overview Nothing)
+    -- /blog/?q=cats    ==>  Just (Overview (Just "cats"))
     -- /blog/cats       ==>  Nothing
     -- /blog/42         ==>  Just (Post 42)
     -- /blog/42?q=cats  ==>  Just (Post 42)
