@@ -81,18 +81,17 @@ relative pathSegments parameters =
 
 {-| Create a cross-origin URL.
 
-    crossOrigin "https://example.com" [ "products" ] [] Nothing
+    crossOrigin "https://example.com" [ "products" ] []
     -- "https://example.com/products"
 
-    crossOrigin "https://example.com" [] [] (Just "help")
-    -- "https://example.com/#help"
+    crossOrigin "https://example.com" [] []
+    -- "https://example.com/"
 
     crossOrigin
       "https://example.com:8042"
       [ "over", "there" ]
       [ string "name" "ferret" ]
-      (Just "nose")
-    -- "https://example.com:8042/over/there?name=ferret#nose"
+    -- "https://example.com:8042/over/there?name=ferret"
 
 **Note:** Cross-origin requests are slightly restricted for security.
 For example, the [same-origin policy][sop] applies when sending HTTP requests,
