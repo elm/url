@@ -532,19 +532,19 @@ what to show on screen.
 
     toUrl "https://example.com:443"
     -- Just
-    --   { protocol = Https, host = "example.com", port = Just 443
+    --   { protocol = Https, host = "example.com", port_ = Just 443
     --   , path = "/", query = Nothing, fragment = Nothing
     --   }
 
     toUrl "https://example.com/hats?q=top"
     -- Just
-    --   { protocol = Https, host = "example.com", port = Nothing
+    --   { protocol = Https, host = "example.com", port_ = Nothing
     --   , path = "/hats", query = Just "q=top", fragment = Nothing
     --   }
 
     toUrl "http://example.com/core/List/#map"
     -- Just
-    --   { protocol = Http, host = "example.com", port = Nothing
+    --   { protocol = Http, host = "example.com", port_ = Nothing
     --   , path = "/core/List/", query = Nothing, fragment = Just "map"
     --   }
 
