@@ -399,7 +399,7 @@ Functions like `toRoute` are useful when creating single-page apps with
 [`Browser.fullscreen`][fs]. I use them in `init` and `onNavigation` to handle
 the initial URL and any changes.
 
-[fs]: http://package.elm-lang.org/packages/elm-lang/browser/latest#fullscreen
+[fs]: /packages/elm-lang/browser/latest#fullscreen
 -}
 parse : Parser (a -> a) a -> Url -> Maybe a
 parse (Parser parser) url =
@@ -505,7 +505,7 @@ addToParametersHelp value maybeList =
 When you are creating a single-page app with [`Browser.fullscreen`][fs], you
 use the [`parse`](#parse) function to turn a `Url` into nicely structured data.
 
-[fs]: http://package.elm-lang.org/packages/elm-lang/browser/latest#fullscreen
+[fs]: /packages/elm-lang/browser/latest#fullscreen
 
 **Note:** This is a subset of all the full possibilities listed in [the URI
 spec](https://tools.ietf.org/html/rfc3986). Specifically, it does not accept
