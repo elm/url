@@ -4,7 +4,6 @@ module Url.Parser exposing
   , (<?>), query
   , fragment
   , parse
-  , Url, Protocol, toUrl, fromUrl
   )
 
 {-| In [the URI spec](https://tools.ietf.org/html/rfc3986), Tim Berners-Lee
@@ -33,12 +32,12 @@ This module is primarily for parsing the `path` part.
 @docs fragment
 
 # Run Parsers
-@docs parse, Url, Protocol, toUrl, fromUrl
+@docs parse
 
 -}
 
 import Dict exposing (Dict)
-import Url exposing (percentDecode)
+import Url exposing (Url)
 import Url.Parser.Query as Query
 import Url.Parser.Internal as Q
 
@@ -362,11 +361,12 @@ fragment toFrag =
 -- PARSE
 
 
-{-| Actually run a parser! You provide some [`Url`](#Url) that
+{-| Actually run a parser! You provide some [`Url`](Url#Url) that
 represent a valid URL. From there `parse` runs your parser on the path, query
-parameters, and fragment!
+parameters, and fragment.
 
-    import Url.Parser as Parser exposing (Parser, int, map, oneOf, s, top)
+    import Url
+    import Url.Parser exposing (Parser, parse, int, map, oneOf, s, top)
 
     type Route = Home | Blog Int | NotFound
 
@@ -378,13 +378,13 @@ parameters, and fragment!
         ]
 
     toRoute : String -> Route
-    toRoute url =
-      case Parser.toUrl url of
+    toRoute string =
+      case Url.fromString string of
         Nothing ->
           NotFound
 
-        Just segments ->
-          Maybe.withDefault NotFound (Parser.parse route segments)
+        Just url ->
+          Maybe.withDefault NotFound (parse route url)
 
     -- toRoute "/blog/42"                            ==  NotFound
     -- toRoute "https://example.com/"                ==  Home
@@ -470,12 +470,12 @@ addParam : String -> Dict String (List String) -> Dict String (List String)
 addParam segment dict =
   case String.split "=" segment of
     [rawKey, rawValue] ->
-      case percentDecode rawKey of
+      case Url.percentDecode rawKey of
         Nothing ->
           dict
 
         Just key ->
-          case percentDecode rawValue of
+          case Url.percentDecode rawValue of
             Nothing ->
               dict
 
@@ -494,171 +494,3 @@ addToParametersHelp value maybeList =
 
     Just list ->
       Just (value :: list)
-
-
-
--- URL SEGMENTS
-
-
-{-| The URL segments for webpages served over HTTP or HTTPS.
-
-When you are creating a single-page app with [`Browser.fullscreen`][fs], you
-use the [`parse`](#parse) function to turn a `Url` into nicely structured data.
-
-[fs]: /packages/elm-lang/browser/latest#fullscreen
-
-**Note:** This is a subset of all the full possibilities listed in [the URI
-spec](https://tools.ietf.org/html/rfc3986). Specifically, it does not accept
-the `userinfo` segment you see in email addresses like `tom@example.com`.
--}
-type alias Url =
-  { protocol : Protocol
-  , host : String
-  , port_ : Maybe Int
-  , path : String
-  , query : Maybe String
-  , fragment : Maybe String
-  }
-
-
-{-| Is the URL served over a secure connection or not?
--}
-type Protocol = Http | Https
-
-
-{-| Attempt to break a URL up into [`Url`](#Url). This is useful in
-single-page apps when you want to parse certain chunks of a URL to figure out
-what to show on screen.
-
-    toUrl "https://example.com:443"
-    -- Just
-    --   { protocol = Https, host = "example.com", port_ = Just 443
-    --   , path = "/", query = Nothing, fragment = Nothing
-    --   }
-
-    toUrl "https://example.com/hats?q=top"
-    -- Just
-    --   { protocol = Https, host = "example.com", port_ = Nothing
-    --   , path = "/hats", query = Just "q=top", fragment = Nothing
-    --   }
-
-    toUrl "http://example.com/core/List/#map"
-    -- Just
-    --   { protocol = Http, host = "example.com", port_ = Nothing
-    --   , path = "/core/List/", query = Nothing, fragment = Just "map"
-    --   }
-
-The conversion to segments can fail in some cases as well:
-
-    toUrl "example.com:443"        == Nothing  -- no protocol
-    toUrl "http://tom@example.com" == Nothing  -- userinfo disallowed
-    toUrl "http://#cats"           == Nothing  -- no host
--}
-toUrl : String -> Maybe Url
-toUrl str =
-  if String.startsWith "http://" str then
-    chompAfterProtocol Http (String.dropLeft 7 str)
-
-  else if String.startsWith "https://" str then
-    chompAfterProtocol Https (String.dropLeft 8 str)
-
-  else
-    Nothing
-
-
-chompAfterProtocol : Protocol -> String -> Maybe Url
-chompAfterProtocol protocol str =
-  if String.isEmpty str then
-    Nothing
-  else
-    case String.indexes "#" str of
-      [] ->
-        chompBeforeFragment protocol Nothing str
-
-      i :: _ ->
-        chompBeforeFragment protocol (Just (String.dropLeft (i + 1) str)) (String.left i str)
-
-
-chompBeforeFragment : Protocol -> Maybe String -> String -> Maybe Url
-chompBeforeFragment protocol frag str =
-  if String.isEmpty str then
-    Nothing
-  else
-    case String.indexes "?" str of
-      [] ->
-        chompBeforeQuery protocol Nothing frag str
-
-      i :: _ ->
-        chompBeforeQuery protocol (Just (String.dropLeft (i + 1) str)) frag (String.left i str)
-
-
-chompBeforeQuery : Protocol -> Maybe String -> Maybe String -> String -> Maybe Url
-chompBeforeQuery protocol params frag str =
-  if String.isEmpty str then
-    Nothing
-  else
-    case String.indexes "/" str of
-      [] ->
-        chompBeforePath protocol "/" params frag str
-
-      i :: _ ->
-        chompBeforePath protocol (String.dropLeft i str) params frag (String.left i str)
-
-
-chompBeforePath : Protocol -> String -> Maybe String -> Maybe String -> String -> Maybe Url
-chompBeforePath protocol path params frag str =
-  if String.isEmpty str || String.contains "@" str then
-    Nothing
-  else
-    case String.indexes ":" str of
-      [] ->
-        Just <| Url protocol str Nothing path params frag
-
-      i :: [] ->
-        case String.toInt (String.dropLeft (i + 1) str) of
-          Nothing ->
-            Nothing
-
-          port_ ->
-            Just <| Url protocol (String.left i str) port_ path params frag
-
-      _ ->
-        Nothing
-
-
-{-| Turn [`Url`](#Url) back into a `String`.
--}
-fromUrl : Url -> String
-fromUrl url =
-  let
-    http =
-      case url.protocol of
-        Http ->
-          "http://"
-
-        Https ->
-          "https://"
-  in
-  addPort url.port_ (http ++ url.host) ++ url.path
-    |> addPrefixed "?" url.query
-    |> addPrefixed "#" url.fragment
-
-
-addPort : Maybe Int -> String -> String
-addPort maybePort starter =
-  case maybePort of
-    Nothing ->
-      starter
-
-    Just port_ ->
-      starter ++ ":" ++ String.fromInt port_
-
-
-addPrefixed : String -> Maybe String -> String -> String
-addPrefixed prefix maybeSegment starter =
-  case maybeSegment of
-    Nothing ->
-      starter
-
-    Just segment ->
-      starter ++ prefix ++ segment
