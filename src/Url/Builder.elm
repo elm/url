@@ -1,7 +1,6 @@
-module Url exposing
+module Url.Builder exposing
   ( absolute, relative, crossOrigin, custom, Root(..)
   , QueryParameter, string, int, toQuery
-  , percentEncode, percentDecode
   )
 
 
@@ -24,13 +23,10 @@ This module helps you create these!
 # Queries
 @docs QueryParameter, string, int, toQuery
 
-# Percent-Encoding
-@docs percentEncode, percentDecode
-
 -}
 
 
-import Elm.Kernel.Url
+import Url
 
 
 
@@ -182,7 +178,7 @@ type QueryParameter =
 -}
 string : String -> String -> QueryParameter
 string key value =
-  QueryParameter (percentEncode key) (percentEncode value)
+  QueryParameter (Url.percentEncode key) (Url.percentEncode value)
 
 
 {-| Create a percent-encoded query parameter.
@@ -195,7 +191,7 @@ So this is just a convenience function, making your code a bit shorter!
 -}
 int : String -> Int -> QueryParameter
 int key value =
-  QueryParameter (percentEncode key) (String.fromInt value)
+  QueryParameter (Url.percentEncode key) (String.fromInt value)
 
 
 {-| Convert a list of query parameters to a percent-encoded query. This
@@ -226,68 +222,3 @@ toQuery parameters =
 toQueryPair : QueryParameter -> String
 toQueryPair (QueryParameter key value) =
   key ++ "=" ++ value
-
-
-
--- PERCENT ENCODING
-
-
-{-| Percent-encoding is how [the official URI spec][uri] “escapes” special
-characters. You can still represent a `?` even though it is reserved for
-queries. **All of the `absolute`, `relative`, `crossOrigin`, and `custom`
-functions already do this automatically!** Do not do it twice.
-
-This function exists in case you want to do something extra custom. Here are
-some examples:
-
-    -- standard ASCII encoding
-    percentEncode "hat"   == "hat"
-    percentEncode "to be" == "to%20be"
-    percentEncode "99%"   == "99%25"
-
-    -- non-standard, but widely accepted, UTF-8 encoding
-    percentEncode "$" == "%24"
-    percentEncode "¢" == "%C2%A2"
-    percentEncode "€" == "%E2%82%AC"
-
-This is the same behavior as JavaScript's [`encodeURIComponent`][js] function,
-and the rules are described in more detail officially [here][s2] and with some
-notes about Unicode [here][wiki].
-
-[js]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/encodeURIComponent
-[uri]: https://tools.ietf.org/html/rfc3986
-[s2]: https://tools.ietf.org/html/rfc3986#section-2.1
-[wiki]: https://en.wikipedia.org/wiki/Percent-encoding
--}
-percentEncode : String -> String
-percentEncode =
-  Elm.Kernel.Url.percentEncode
-
-
-{-| Check out the `percentEncode` function to learn about percent-encoding.
-This function does the opposite! Here are the reverse examples:
-
-    -- ASCII
-    percentDecode "99%25"     == Just "hat"
-    percentDecode "to%20be"   == Just "to be"
-    percentDecode "hat"       == Just "99%"
-
-    -- UTF-8
-    percentDecode "%24"       == Just "$"
-    percentDecode "%C2%A2"    == Just "¢"
-    percentDecode "%E2%82%AC" == Just "€"
-
-Why is it a `Maybe` though? Well, these strings come from strangers on the
-internet as a bunch of bits and may have encoding problems. For example:
-
-    percentDecode "%"   == Nothing  -- not followed by two hex digits
-    percentDecode "%XY" == Nothing  -- not followed by two HEX digits
-    percentDecode "%C2" == Nothing  -- half of the "¢" encoding "%C2%A2"
-
-This is the same behavior as JavaScript's [`decodeURIComponent`][js] function.
-
-[js]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/decodeURIComponent
--}
-percentDecode : String -> Maybe String
-percentDecode =
-  Elm.Kernel.Url.percentDecode
