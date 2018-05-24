@@ -38,8 +38,8 @@ import Url
     absolute [] []
     -- "/"
 
-    absolute [ "packages", "elm-lang", "core" ] []
-    -- "/packages/elm-lang/core"
+    absolute [ "packages", "elm", "core" ] []
+    -- "/packages/elm/core"
 
     absolute [ "blog", String.fromInt 42 ] []
     -- "/blog/42"
@@ -59,8 +59,8 @@ absolute pathSegments parameters =
     relative [] []
     -- ""
 
-    relative [ "elm-lang", "core" ] []
-    -- "elm-lang/core"
+    relative [ "elm", "core" ] []
+    -- "elm/core"
 
     relative [ "blog", String.fromInt 42 ] []
     -- "blog/42"
@@ -115,10 +115,10 @@ type Root = Absolute | Relative | CrossOrigin String
 {-| Create custom URLs that may have a hash on the end:
 
     custom Absolute
-      [ "packages", "elm-lang", "core", "latest", "String" ]
+      [ "packages", "elm", "core", "latest", "String" ]
       []
       (Just "length")
-    -- "/packages/elm-lang/core/latest/String#length"
+    -- "/packages/elm/core/latest/String#length"
 
     custom Relative [ "there" ] [ string "name" "ferret" ] Nothing
     -- "there?name=ferret"

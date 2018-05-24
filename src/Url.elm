@@ -42,7 +42,7 @@ use the [`Url.Parser`](Url-Parser) module to turn a `Url` into even nicer data.
 If you want to create your own URLs, check out the [`Url.Builder`](Url-Builder)
 module as well!
 
-[fs]: /packages/elm-lang/browser/latest/Browser#fullscreen
+[fs]: /packages/elm/browser/latest/Browser#fullscreen
 
 **Note:** This is a subset of all the full possibilities listed in the URI
 spec. Specifically, it does not accept the `userinfo` segment you see in email

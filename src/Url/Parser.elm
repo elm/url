@@ -399,7 +399,7 @@ Functions like `toRoute` are useful when creating single-page apps with
 [`Browser.fullscreen`][fs]. I use them in `init` and `onNavigation` to handle
 the initial URL and any changes.
 
-[fs]: /packages/elm-lang/browser/latest#fullscreen
+[fs]: /packages/elm/browser/latest/Browser#fullscreen
 -}
 parse : Parser (a -> a) a -> Url -> Maybe a
 parse (Parser parser) url =
