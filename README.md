@@ -1,11 +1,8 @@
 # Work with URLs
 
-This library has two primary modules:
+This package helps you (1) build new URLs and (2) parse existing URLs into nice Elm data structures.
 
-  - `Url` to build URLs for HTTP requests
-  - `Url.Parser` to parse URLs for “routing” in single-page apps (SPAs)
-
-Check out those modules for specific usage examples!
+These tasks are quite common when building web apps in Elm with [`Browser.application`](https://package.elm-lang.org/packages/elm/browser/latest/Browser#application)!
 
 
 ## What is a URL?
@@ -21,10 +18,8 @@ A URL is defined by Tim Berners-Lee in [this document](https://tools.ietf.org/ht
 
 And here are some facts that I found surprising:
 
-  - **ASCII only** &mdash; Behavior with other encodings is undefined in the spec. So a browser may handle a non-ASCII character one way, while this library handles it another. No one is wrong. It is just unspecified. I would stick to ASCII to be safe.
-
-  - **Escaping** &mdash; The spec uses the term [percent-encoded](https://tools.ietf.org/html/rfc3986#section-2.1) to reduce confusion with other escape mechanisms. The format is `%XX` allowing two hex digits. According to [this table of ASCII characters](https://ascii.cl/), you could encode `?` as `%3F` and `=` as `%3D`. There are many subtleties though, so I recommend reading [this](https://en.wikipedia.org/wiki/Percent-encoding) for more information!
-
+- **ASCII** &mdash; The spec only talks about ASCII characters. Behavior with other encodings is unspecified, so if you use a UTF-8 character directly, it may be handled differently by browsers, packages, and servers! No one is wrong. It is just unspecified. So I would stick to ASCII to be safe.
+- **Escaping** &mdash; There are some reserved characters in the spec, like `/`, `?`, and `#`. So what happens when you need those in your query? The spec allows you to “escape” characters (`/` => `%2F`, `?` => `%3F`, `#` => `%23`) so it is clearly not a reserved characters anymore. The spec calls this [percent-encoding](https://tools.ietf.org/html/rfc3986#section-2.1). The basic idea is to look up the hex code in [the ASCII table](https://ascii.cl/) and put a `%` in front. There are many subtleties though, so I recommend reading [this](https://en.wikipedia.org/wiki/Percent-encoding) for more details!
 
 > **Note:** The difference between a URI and a URL is kind of subtle. [This post](https://danielmiessler.com/study/url-uri/) explains the difference nicely. I decided to call this library `elm/url` because it is primarily concerned with HTTP which does need actual locations.
 
