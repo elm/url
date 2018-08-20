@@ -176,10 +176,10 @@ custom tipe stringToSomething =
     search =
       s "search" </> string
 
-    -- /search/cats/  ==>  Just "cats"
+    -- /search/wolf/  ==>  Just "wolf"
     -- /search/frog   ==>  Just "frog"
     -- /search/       ==>  Nothing
-    -- /cats/         ==>  Nothing
+    -- /wolf/         ==>  Nothing
 -}
 slash : Parser a b -> Parser b c -> Parser a c
 slash (Parser parseBefore) (Parser parseAfter) =
@@ -193,14 +193,14 @@ slash (Parser parseBefore) (Parser parseAfter) =
 
     userAndId : Parser (String -> Int -> a) a
     userAndId =
-      s "user" </> string </> s "comments" </> int
+      s "user" </> string </> s "comment" </> int
 
     comment : Parser (Comment -> a) a
     comment =
       map Comment userAndId
 
-    -- /user/bob/comments/42  ==>  Just { user = "bob", id = 42 }
-    -- /user/tom/comments/35  ==>  Just { user = "tom", id = 35 }
+    -- /user/bob/comment/42  ==>  Just { user = "bob", id = 42 }
+    -- /user/tom/comment/35  ==>  Just { user = "tom", id = 35 }
     -- /user/sam/             ==>  Nothing
 -}
 map : a -> Parser a b -> Parser (b -> c) c
@@ -218,7 +218,7 @@ mapState func { visited, unvisited, params, frag, value } =
 {-| Try a bunch of different path parsers.
 
     type Route
-      = Search String
+      = Topic String
       | Blog Int
       | User String
       | Comment String Int
@@ -226,21 +226,21 @@ mapState func { visited, unvisited, params, frag, value } =
     route : Parser (Route -> a) a
     route =
       oneOf
-        [ map Search  (s "search" </> string)
+        [ map Topic   (s "topic" </> string)
         , map Blog    (s "blog" </> int)
         , map User    (s "user" </> string)
-        , map Comment (s "user" </> string </> s "comments" </> int)
+        , map Comment (s "user" </> string </> s "comment" </> int)
         ]
 
-    -- /search/cats           ==>  Just (Search "cats")
-    -- /search/"              ==>  Nothing
+    -- /topic/wolf           ==>  Just (Topic "wolf")
+    -- /topic/               ==>  Nothing
 
     -- /blog/42               ==>  Just (Blog 42)
-    -- /blog/cats             ==>  Nothing
+    -- /blog/wolf             ==>  Nothing
 
     -- /user/sam/             ==>  Just (User "sam")
-    -- /user/bob/comments/42  ==>  Just (Comment "bob" 42)
-    -- /user/tom/comments/35  ==>  Just (Comment "tom" 35)
+    -- /user/bob/comment/42  ==>  Just (Comment "bob" 42)
+    -- /user/tom/comment/35  ==>  Just (Comment "tom" 35)
     -- /user/                 ==>  Nothing
 
 If there are multiple parsers that could succeed, the first one wins.
@@ -294,11 +294,11 @@ your blog website:
         ]
 
     -- /blog/           ==>  Just (Overview Nothing)
-    -- /blog/?q=cats    ==>  Just (Overview (Just "cats"))
-    -- /blog/cats       ==>  Nothing
+    -- /blog/?q=wolf    ==>  Just (Overview (Just "wolf"))
+    -- /blog/wolf       ==>  Nothing
     -- /blog/42         ==>  Just (Post 42)
-    -- /blog/42?q=cats  ==>  Just (Post 42)
-    -- /blog/42/cats    ==>  Nothing
+    -- /blog/42?q=wolf  ==>  Just (Post 42)
+    -- /blog/42/wolf    ==>  Nothing
 -}
 questionMark : Parser a (query -> b) -> Query.Parser query -> Parser a b
 questionMark parser queryParser =
@@ -334,19 +334,17 @@ query (Q.Parser queryParser) =
 be handy for handling links to DOM elements within a page. Pages like this one!
 
     type alias Docs =
-      { name : String
-      , value : Maybe String
-      }
+      (String, Maybe String)
 
     docs : Parser (Docs -> a) a
     docs =
-      map Docs (string </> fragment identity)
+      map Tuple.pair (string </> fragment identity)
 
     -- /List/map   ==>  Nothing
-    -- /List/#map  ==>  Just (Docs "List" (Just "map"))
-    -- /List#map   ==>  Just (Docs "List" (Just "map"))
-    -- /List#      ==>  Just (Docs "List" (Just ""))
-    -- /List       ==>  Just (Docs "List" Nothing)
+    -- /List/#map  ==>  Just ("List", Just "map")
+    -- /List#map   ==>  Just ("List", Just "map")
+    -- /List#      ==>  Just ("List", Just "")
+    -- /List       ==>  Just ("List", Nothing)
     -- /           ==>  Nothing
 
 -}
@@ -391,8 +389,8 @@ parameters, and fragment.
     -- toRoute "https://example.com/blog"            ==  NotFound
     -- toRoute "https://example.com/blog/42"         ==  Blog 42
     -- toRoute "https://example.com/blog/42/"        ==  Blog 42
-    -- toRoute "https://example.com/blog/42#cats"    ==  Blog 42
-    -- toRoute "https://example.com/blog/42?q=cats"  ==  Blog 42
+    -- toRoute "https://example.com/blog/42#wolf"    ==  Blog 42
+    -- toRoute "https://example.com/blog/42?q=wolf"  ==  Blog 42
     -- toRoute "https://example.com/settings"        ==  NotFound
 
 Functions like `toRoute` are useful when creating single-page apps with
