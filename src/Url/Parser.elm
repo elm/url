@@ -394,10 +394,10 @@ parameters, and fragment.
     -- toRoute "https://example.com/settings"        ==  NotFound
 
 Functions like `toRoute` are useful when creating single-page apps with
-[`Browser.fullscreen`][fs]. I use them in `init` and `onNavigation` to handle
+[`Browser.application`][app]. I use them in `init` and `onNavigation` to handle
 the initial URL and any changes.
 
-[fs]: /packages/elm/browser/latest/Browser#fullscreen
+[app]: /packages/elm/browser/latest/Browser#application
 -}
 parse : Parser (a -> a) a -> Url -> Maybe a
 parse (Parser parser) url =
