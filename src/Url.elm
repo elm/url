@@ -36,13 +36,13 @@ says a URL looks like this:
   scheme     authority       path        query   fragment
 ```
 
-When you are creating a single-page app with [`Browser.fullscreen`][fs], you
+When you are creating a single-page app with [`Browser.application`][app], you
 use the [`Url.Parser`](Url-Parser) module to turn a `Url` into even nicer data.
 
 If you want to create your own URLs, check out the [`Url.Builder`](Url-Builder)
 module as well!
 
-[fs]: /packages/elm/browser/latest/Browser#fullscreen
+[app]: /packages/elm/browser/latest/Browser#application
 
 **Note:** This is a subset of all the full possibilities listed in the URI
 spec. Specifically, it does not accept the `userinfo` segment you see in email
