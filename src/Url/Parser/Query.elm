@@ -112,7 +112,7 @@ int key =
     -- ?debug=true&debug=true == Nothing
 
 You could add `0` and `1` to the dictionary if you want to handle those as
-well. You can also use [`map`](#map) to say `map (Result.withDefault False) debug`
+well. You can also use [`map`](#map) to say `map (Maybe.withDefault False) debug`
 to get a parser of type `Parser Bool` that swallows any errors and defaults to
 `False`.
 
@@ -164,7 +164,7 @@ default to `1` if there is any problem?
 
     page : Parser Int
     page =
-      map (Result.withDefault 1) (int "page")
+      map (Maybe.withDefault 1) (int "page")
 
 -}
 map : (a -> b) -> Parser a -> Parser b
