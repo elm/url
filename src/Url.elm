@@ -265,9 +265,9 @@ Check out the `percentEncode` function to learn about percent-encoding.
 This function does the opposite! Here are the reverse examples:
 
     -- ASCII
-    percentDecode "99%25"     == Just "hat"
+    percentDecode "hat"       == Just "hat"
     percentDecode "to%20be"   == Just "to be"
-    percentDecode "hat"       == Just "99%"
+    percentDecode "99%25"     == Just "99%"
 
     -- UTF-8
     percentDecode "%24"       == Just "$"
