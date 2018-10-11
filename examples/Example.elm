@@ -1,18 +1,22 @@
-import Html exposing (Html, a, button, code, div, h1, li, text, ul)
+import Html exposing (Html, a, button, code, div, h1, h3, li, text, ul)
 import Html.Attributes exposing (href)
 import Html.Events exposing (onClick)
-import Http
-import Navigation
-import UrlParser as Url exposing ((</>), (<?>), s, int, stringParam, top)
+import Browser exposing (Document, UrlRequest(..))
+import Browser.Navigation exposing (Key, pushUrl)
+import Url exposing (Url)
+import Url.Parser exposing (Parser, (</>), (<?>), s, top)
+import Url.Parser.Query
 
 
-
+main: Program () Model Msg
 main =
-  Navigation.program UrlChange
-    { init = init
+  Browser.application
+    { init = \_ -> init
     , view = view
     , update = update
     , subscriptions = subscriptions
+    , onUrlRequest = onUrlRequest
+    , onUrlChange = onUrlChange
     }
 
 
@@ -21,13 +25,14 @@ main =
 
 
 type alias Model =
-  { history : List (Maybe Route)
+  { history : List (Maybe Route),
+  key: Key
   }
 
 
-init : Navigation.Location -> ( Model, Cmd Msg )
-init location =
-  ( Model [Url.parsePath route location]
+init : Url -> Key -> ( Model, Cmd Msg )
+init url key =
+  ( Model [ Url.Parser.parse route url ] key
   , Cmd.none
   )
 
@@ -42,12 +47,12 @@ type Route
   | BlogPost Int
 
 
-route : Url.Parser (Route -> a) a
+route : Parser (Route -> a) a
 route =
-  Url.oneOf
-    [ Url.map Home top
-    , Url.map BlogList (s "blog" <?> stringParam "search")
-    , Url.map BlogPost (s "blog" </> int)
+  Url.Parser.oneOf
+    [ Url.Parser.map Home top
+    , Url.Parser.map BlogList (s "blog" <?> Url.Parser.Query.string "search")
+    , Url.Parser.map BlogPost (s "blog" </> Url.Parser.int)
     ]
 
 
@@ -57,7 +62,8 @@ route =
 
 type Msg
   = NewUrl String
-  | UrlChange Navigation.Location
+  | UrlChange Url
+  | Updates
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -65,13 +71,16 @@ update msg model =
   case msg of
     NewUrl url ->
       ( model
-      , Navigation.newUrl url
+      , pushUrl model.key url
       )
 
     UrlChange location ->
-      ( { model | history = Url.parsePath route location :: model.history }
+      ( { model | history = Url.Parser.parse route location :: model.history }
       , Cmd.none
       )
+
+    Updates ->
+      ( model , Cmd.none      )
 
 
 
@@ -83,17 +92,36 @@ subscriptions model =
   Sub.none
 
 
+-- UPDATES
+
+onUrlRequest: UrlRequest -> Msg
+onUrlRequest req =
+    case req of
+        Internal url_ ->
+            Debug.log ("URL requested for internal at " ++ Url.toString url_) Updates
+        External str ->
+            Debug.log ("Some updates related to" ++ str) Updates
+
+
+onUrlChange: Url -> Msg
+onUrlChange url =
+    UrlChange url
+
 
 -- VIEW
 
 
-view : Model -> Html Msg
+view : Model -> Document Msg
 view model =
+  Document "Example Page for elm/url" [
   div []
     [ h1 [] [ text "Links" ]
     , ul [] (List.map viewLink [ "/", "/blog/", "/blog/42", "/blog/37", "/blog/?search=cats" ])
     , h1 [] [ text "History" ]
     , ul [] (List.map viewRoute model.history)
+    , h3 [] [ a [ href "http://example.com" ] [ text "External Link" ] ]
+    , h3 [] [ a [ href "/something" ] [ text "Internal Link" ] ]
+    ]
     ]
 
 
@@ -108,13 +136,13 @@ viewRoute maybeRoute =
     Nothing ->
       li [] [ text "Invalid URL"]
 
-    Just route ->
-      li [] [ code [] [ text (routeToString route) ] ]
+    Just route_ ->
+      li [] [ code [] [ text (routeToString route_) ] ]
 
 
 routeToString : Route -> String
-routeToString route =
-  case route of
+routeToString route_ =
+  case route_ of
     Home ->
       "home"
 
@@ -122,7 +150,7 @@ routeToString route =
       "list all blog posts"
 
     BlogList (Just search) ->
-      "search for " ++ Http.encodeUri search
+      "search for " ++ search
 
     BlogPost id ->
-      "show blog " ++ toString id
+      "show blog " ++ String.fromInt id
