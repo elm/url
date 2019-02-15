@@ -1,6 +1,6 @@
 module Url.Builder exposing
   ( absolute, relative, crossOrigin, custom, Root(..)
-  , QueryParameter, string, int, toQuery
+  , QueryParameter, string, int, float, toQuery
   )
 
 
@@ -192,6 +192,20 @@ So this is just a convenience function, making your code a bit shorter!
 int : String -> Int -> QueryParameter
 int key value =
   QueryParameter (Url.percentEncode key) (String.fromInt value)
+
+
+{-| Create a percent-encoded query parameter.
+
+    absolute ["search"] [ float "lat" 48.4428425, float "lng" 1.4812848 ]
+    -- "/search?lat=48.4428425&lng=1.4812848"
+
+Writing `float key n` is the same as writing `string key (String.fromFloat n)`.
+So this is just a convenience function, making your code a bit shorter!
+
+-}
+float : String -> Float -> QueryParameter
+float key value =
+  QueryParameter (Url.percentEncode key) (String.fromFloat value)
 
 
 {-| Convert a list of query parameters to a percent-encoded query. This

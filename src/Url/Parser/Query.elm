@@ -1,5 +1,5 @@
 module Url.Parser.Query exposing
-  ( Parser, string, int, enum, custom
+  ( Parser, string, int, float, enum, custom
   , map, map2, map3, map4, map5, map6, map7, map8
   )
 
@@ -94,6 +94,34 @@ int key =
 
       _ ->
         Nothing
+
+
+{-| Handle `Float` parameters.
+
+
+    height : Parser (Maybe Float)
+    height =
+        float "height"
+
+    -- ?height=2               == Just 2
+    -- ?height=17.876          == Just 17.876
+    -- ?height=two             == Nothing
+    -- ?sort=date              == Nothing
+    -- ?height=1.2&height=3.19 == Nothing
+
+Check out [`custom`](#custom) if you need to handle multiple `height` parameters.
+
+-}
+float : String -> Parser (Maybe Float)
+float key =
+    custom key <|
+        \stringList ->
+            case stringList of
+                [ str ] ->
+                    String.toFloat str
+
+                _ ->
+                    Nothing
 
 
 {-| Handle enumerated parameters. Maybe you want a true-or-false parameter:
