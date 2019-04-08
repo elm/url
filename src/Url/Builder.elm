@@ -189,10 +189,10 @@ string key value =
 \*Note that a query parameter with an empty key value pair has no effect on URL.
  -}
 maybe : String -> Maybe String -> QueryParameter
-maybe key value =
-    case value of
-      Just val ->
-        QueryParameter (Url.percentEncode key) (Url.percentEncode val)
+maybe key maybeValue =
+    case maybeValue of
+      Just value ->
+        string key value
 
       Nothing ->
           QueryParameter "" ""
