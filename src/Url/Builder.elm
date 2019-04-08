@@ -180,6 +180,22 @@ string : String -> String -> QueryParameter
 string key value =
   QueryParameter (Url.percentEncode key) (Url.percentEncode value)
 
+{-| Create a percent-encoded query parameter from a Maybe string.
+     absolute ["products"] [ maybe "search" (Just "hat") ]
+    -- "/products?search=hat&page=2"
+     absolute ["products"] [ maybe "search" Nothing ]
+        -- "/products?="
+ This is particularly useful if you don't want to send a key with an empty value.
+\*Note that a query parameter with an empty key value pair has no effect on URL.
+ -}
+maybe : String -> Maybe String -> QueryParameter
+maybe key value =
+    case value of
+      Just val ->
+        QueryParameter (Url.percentEncode key) (Url.percentEncode val)
+
+      Nothing ->
+          QueryParameter "" ""
 
 {-| Create a percent-encoded query parameter.
 
