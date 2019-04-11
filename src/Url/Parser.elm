@@ -1,6 +1,6 @@
 module Url.Parser exposing
   ( Parser, string, int, s
-  , (</>), map, oneOf, top, custom
+  , (</>), map, oneOf, top, custom, remainder
   , (<?>), query
   , fragment
   , parse
@@ -23,7 +23,7 @@ This module is primarily for parsing the `path` part.
 @docs Parser, string, int, s
 
 # Path
-@docs (</>), map, oneOf, top, custom
+@docs (</>), map, oneOf, top, custom, remainder
 
 # Query
 @docs (<?>), query
@@ -154,6 +154,24 @@ custom tipe stringToSomething =
 
           Nothing ->
             []
+
+
+{-| Parse all remaining path segments as a `List String`.
+
+    blog : Parser (List String -> a) a
+    blog =
+      s "blog" </> remainder
+
+    -- /blog              ==>  Just []
+    -- /blog/hello        ==>  Just [ "hello" ]
+    -- /blog/hello/world  ==>  Just [ "hello", "world" ]
+    -- /foo/bar           ==>  Nothing
+-}
+remainder : Parser (List String -> a) a
+remainder =
+    Parser <|
+        \{ unvisited, params, frag, value } ->
+            [ State [] params frag (value unvisited) ]
 
 
 
