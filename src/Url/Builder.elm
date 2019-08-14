@@ -51,7 +51,7 @@ Notice that the URLs start with a slash!
 -}
 absolute : List String -> List QueryParameter -> String
 absolute pathSegments parameters =
-  "/" ++ String.join "/" pathSegments ++ toQuery parameters
+  "/" ++ String.join "/" (List.map Url.percentEncode pathSegments) ++ toQuery parameters
 
 
 {-| Create a relative URL:
@@ -72,7 +72,7 @@ Notice that the URLs **do not** start with a slash!
 -}
 relative : List String -> List QueryParameter -> String
 relative pathSegments parameters =
-  String.join "/" pathSegments ++ toQuery parameters
+  String.join "/" (List.map Url.percentEncode pathSegments)  ++ toQuery parameters
 
 
 {-| Create a cross-origin URL.
@@ -99,7 +99,7 @@ so the appropriate `Access-Control-Allow-Origin` header must be enabled on the
 -}
 crossOrigin : String -> List String -> List QueryParameter -> String
 crossOrigin prePath pathSegments parameters =
-  prePath ++ "/" ++ String.join "/" pathSegments ++ toQuery parameters
+  prePath ++ "/" ++ String.join "/" (List.map Url.percentEncode pathSegments)  ++ toQuery parameters
 
 
 
@@ -134,7 +134,7 @@ custom : Root -> List String -> List QueryParameter -> Maybe String -> String
 custom root pathSegments parameters maybeFragment =
   let
     fragmentless =
-      rootToPrePath root ++ String.join "/" pathSegments ++ toQuery parameters
+      rootToPrePath root ++ String.join "/" (List.map Url.percentEncode pathSegments)  ++ toQuery parameters
   in
   case maybeFragment of
     Nothing ->
