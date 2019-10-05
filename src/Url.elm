@@ -163,21 +163,30 @@ chompBeforePath : Protocol -> String -> Maybe String -> Maybe String -> String -
 chompBeforePath protocol path params frag str =
   if String.isEmpty str || String.contains "@" str then
     Nothing
+  else if String.startsWith "[" str then
+      -- IPv6 literal enclosed in brackets
+      case String.indexes "]" str of
+          i :: [] ->
+              Just <| Url protocol (String.left (i + 1) str) (String.toInt (String.dropLeft (i + 2) str)) path params frag
+
+          _ ->
+              Nothing
+
   else
-    case String.indexes ":" str of
-      [] ->
-        Just <| Url protocol str Nothing path params frag
+      case String.indexes ":" str of
+          [] ->
+              Just <| Url protocol str Nothing path params frag
 
-      i :: [] ->
-        case String.toInt (String.dropLeft (i + 1) str) of
-          Nothing ->
-            Nothing
+          i :: [] ->
+              case String.toInt (String.dropLeft (i + 1) str) of
+                  Nothing ->
+                      Nothing
 
-          port_ ->
-            Just <| Url protocol (String.left i str) port_ path params frag
+                  port_ ->
+                      Just <| Url protocol (String.left i str) port_ path params frag
 
-      _ ->
-        Nothing
+          _ ->
+              Nothing
 
 
 {-| Turn a [`Url`](#Url) into a `String`.
