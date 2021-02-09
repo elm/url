@@ -3,10 +3,10 @@
 To run the examples in this folder, follow the following steps:
 
 ```bash
-git clone https://github.com/evancz/url-parser.git
-cd url-parser
+git clone https://github.com/elm/url
+cd url
 cd examples
-elm-reactor
+elm reactor
 ```
 
-This will navigate into the `examples/` directory and start `elm-reactor`. From here, go to [http://localhost:8000](http://localhost:8000) and start clicking on `.elm` files to see them in action.
+This will navigate into the `examples/` directory and start `elm reactor`. From here, go to [http://localhost:8000](http://localhost:8000) and start clicking on `.elm` files to see them in action.
