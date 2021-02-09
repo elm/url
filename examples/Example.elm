@@ -1,24 +1,28 @@
-module Main exposing (Model, Msg(..), Route(..), init, main, onUrlChange, onUrlRequest, route, routeToString, subscriptions, update, view, viewLink, viewRoute)
+module Example exposing (main)
 
-import Browser exposing (Document, UrlRequest(..))
-import Browser.Navigation exposing (Key, pushUrl)
-import Html exposing (Html, a, button, code, div, h1, h3, li, text, ul)
+
+import Browser
+import Browser.Navigation as Nav
+import Html exposing (Html, a, code, div, h1, h3, li, text, ul)
 import Html.Attributes exposing (href)
-import Html.Events exposing (onClick)
 import Url exposing (Url)
-import Url.Parser exposing ((</>), (<?>), Parser, s, top)
-import Url.Parser.Query
+import Url.Parser as P exposing (Parser, (</>), (<?>), s, top)
+import Url.Parser.Query as Q
+
+
+
+-- MAIN
 
 
 main : Program () Model Msg
 main =
     Browser.application
-        { init = \_ -> init
+        { init = init
         , view = view
         , update = update
         , subscriptions = subscriptions
-        , onUrlRequest = onUrlRequest
-        , onUrlChange = onUrlChange
+        , onUrlRequest = UrlRequest
+        , onUrlChange = UrlChange
         }
 
 
@@ -28,13 +32,13 @@ main =
 
 type alias Model =
     { history : List (Maybe Route)
-    , key : Key
+    , key : Nav.Key
     }
 
 
-init : Url -> Key -> ( Model, Cmd Msg )
-init url key =
-    ( Model [ Url.Parser.parse route url ] key
+init : () -> Url -> Nav.Key -> ( Model, Cmd Msg )
+init _ url key =
+    ( Model [ P.parse routeParser url ] key
     , Cmd.none
     )
 
@@ -49,12 +53,12 @@ type Route
     | BlogPost Int
 
 
-route : Parser (Route -> a) a
-route =
-    Url.Parser.oneOf
-        [ Url.Parser.map Home top
-        , Url.Parser.map BlogList (s "blog" <?> Url.Parser.Query.string "search")
-        , Url.Parser.map BlogPost (s "blog" </> Url.Parser.int)
+routeParser : Parser (Route -> a) a
+routeParser =
+    P.oneOf
+        [ P.map Home top
+        , P.map BlogList (s "blog" <?> Q.string "search")
+        , P.map BlogPost (s "blog" </> P.int)
         ]
 
 
@@ -63,26 +67,29 @@ route =
 
 
 type Msg
-    = NewUrl String
-    | UrlChange Url
-    | Updates
+    = UrlChange Url
+    | UrlRequest Browser.UrlRequest
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        NewUrl url ->
-            ( model
-            , pushUrl model.key url
-            )
-
-        UrlChange location ->
-            ( { model | history = Url.Parser.parse route location :: model.history }
+        UrlChange url ->
+            ( { model | history = P.parse routeParser url :: model.history }
             , Cmd.none
             )
 
-        Updates ->
-            ( model, Cmd.none )
+        UrlRequest request ->
+            case request of
+                Browser.Internal url ->
+                    ( model
+                    , Nav.pushUrl model.key (Url.toString url)
+                    )
+
+                Browser.External url ->
+                    ( model
+                    , Nav.load url
+                    )
 
 
 
@@ -95,68 +102,31 @@ subscriptions model =
 
 
 
--- UPDATES
-
-
-onUrlRequest : UrlRequest -> Msg
-onUrlRequest req =
-    case req of
-        Internal url_ ->
-            Debug.log ("URL requested for internal at " ++ Url.toString url_) Updates
-
-        External str ->
-            Debug.log ("Some updates related to" ++ str) Updates
-
-
-onUrlChange : Url -> Msg
-onUrlChange url =
-    UrlChange url
-
-
-
 -- VIEW
 
 
-view : Model -> Document Msg
+view : Model -> Browser.Document Msg
 view model =
-    Document "Example Page for elm/url"
+    Browser.Document "Example Page for elm/url"
         [ div []
             [ h1 [] [ text "Links" ]
             , ul [] (List.map viewLink [ "/", "/blog/", "/blog/42", "/blog/37", "/blog/?search=cats" ])
             , h1 [] [ text "History" ]
             , ul [] (List.map viewRoute model.history)
-            , h3 [] [ a [ href "http://example.com" ] [ text "External Link" ] ]
-            , h3 [] [ a [ href "/something" ] [ text "Internal Link" ] ]
             ]
         ]
 
 
 viewLink : String -> Html Msg
 viewLink url =
-    li [] [ button [ onClick (NewUrl url) ] [ text url ] ]
+    li [] [ a [ href url ] [ text url ] ]
 
 
 viewRoute : Maybe Route -> Html msg
 viewRoute maybeRoute =
     case maybeRoute of
         Nothing ->
-            li [] [ text "Invalid URL" ]
+            li [] [ code [] [ text "Uknown URL" ] ]
 
-        Just route_ ->
-            li [] [ code [] [ text (routeToString route_) ] ]
-
-
-routeToString : Route -> String
-routeToString route_ =
-    case route_ of
-        Home ->
-            "home"
-
-        BlogList Nothing ->
-            "list all blog posts"
-
-        BlogList (Just search) ->
-            "search for " ++ search
-
-        BlogPost id ->
-            "show blog " ++ String.fromInt id
+        Just route ->
+            li [] [ code [] [ text (Debug.toString route) ] ]
