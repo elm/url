@@ -140,9 +140,9 @@ anything though!
 Say you are unlucky enough to need to handle `?post=2&post=7` to show a couple
 posts on screen at once. You could say:
 
-    posts : Parser (Maybe (List Int))
+    posts : Parser (List Int)
     posts =
-      custom "post" (List.maybeMap String.toInt)
+      custom "post" (List.filterMap String.toInt)
 
     -- ?post=2        == [2]
     -- ?post=2&post=7 == [2, 7]
