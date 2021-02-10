@@ -1,6 +1,6 @@
 module Url.Parser exposing
   ( Parser, string, int, s
-  , (</>), map, oneOf, top, custom
+  , (</>), map, oneOf, top, custom, remainder
   , (<?>), query
   , fragment
   , parse
@@ -23,7 +23,7 @@ This module is primarily for parsing the `path` part.
 @docs Parser, string, int, s
 
 # Path
-@docs (</>), map, oneOf, top, custom
+@docs (</>), map, oneOf, top, custom, remainder
 
 # Query
 @docs (<?>), query
@@ -61,8 +61,7 @@ type Parser a b =
 
 
 type alias State value =
-  { visited : List String
-  , unvisited : List String
+  { unvisited : List String
   , params : Dict String (List String)
   , frag : Maybe String
   , value : value
@@ -111,14 +110,14 @@ The path segment must be an exact match!
 -}
 s : String -> Parser a a
 s str =
-  Parser <| \{ visited, unvisited, params, frag, value } ->
+  Parser <| \{ unvisited, params, frag, value } ->
     case unvisited of
       [] ->
         []
 
       next :: rest ->
         if next == str then
-          [ State (next :: visited) rest params frag value ]
+          [ State rest params frag value ]
 
         else
           []
@@ -143,7 +142,7 @@ You can use it to define something like “only CSS files” like this:
 -}
 custom : String -> (String -> Maybe a) -> Parser (a -> b) b
 custom tipe stringToSomething =
-  Parser <| \{ visited, unvisited, params, frag, value } ->
+  Parser <| \{ unvisited, params, frag, value } ->
     case unvisited of
       [] ->
         []
@@ -151,10 +150,28 @@ custom tipe stringToSomething =
       next :: rest ->
         case stringToSomething next of
           Just nextValue ->
-            [ State (next :: visited) rest params frag (value nextValue) ]
+            [ State rest params frag (value nextValue) ]
 
           Nothing ->
             []
+
+
+{-| Parse all remaining path segments as a `List String`.
+
+    blog : Parser (List String -> a) a
+    blog =
+      s "blog" </> remainder
+
+    -- /blog              ==>  Just []
+    -- /blog/hello        ==>  Just [ "hello" ]
+    -- /blog/hello/world  ==>  Just [ "hello", "world" ]
+    -- /foo/bar           ==>  Nothing
+-}
+remainder : Parser (List String -> a) a
+remainder =
+    Parser <|
+        \{ unvisited, params, frag, value } ->
+            [ State [] params frag (value unvisited) ]
 
 
 
@@ -205,14 +222,14 @@ slash (Parser parseBefore) (Parser parseAfter) =
 -}
 map : a -> Parser a b -> Parser (b -> c) c
 map subValue (Parser parseArg) =
-  Parser <| \{ visited, unvisited, params, frag, value } ->
+  Parser <| \{ unvisited, params, frag, value } ->
     List.map (mapState value) <| parseArg <|
-      State visited unvisited params frag subValue
+      State unvisited params frag subValue
 
 
 mapState : (a -> b) -> State a -> State b
-mapState func { visited, unvisited, params, frag, value } =
-  State visited unvisited params frag (func value)
+mapState func { unvisited, params, frag, value } =
+  State unvisited params frag (func value)
 
 
 {-| Try a bunch of different path parsers.
@@ -321,8 +338,8 @@ segments.
 -}
 query : Query.Parser query -> Parser (query -> a) a
 query (Q.Parser queryParser) =
-  Parser <| \{ visited, unvisited, params, frag, value } ->
-    [ State visited unvisited params frag (value (queryParser params))
+  Parser <| \{ unvisited, params, frag, value } ->
+    [ State unvisited params frag (value (queryParser params))
     ]
 
 
@@ -350,8 +367,8 @@ be handy for handling links to DOM elements within a page. Pages like this one!
 -}
 fragment : (Maybe String -> fragment) -> Parser (fragment -> a) a
 fragment toFrag =
-  Parser <| \{ visited, unvisited, params, frag, value } ->
-    [ State visited unvisited params frag (value (toFrag frag))
+  Parser <| \{ unvisited, params, frag, value } ->
+    [ State unvisited params frag (value (toFrag frag))
     ]
 
 
@@ -402,7 +419,7 @@ the initial URL and any changes.
 parse : Parser (a -> a) a -> Url -> Maybe a
 parse (Parser parser) url =
   getFirstMatch <| parser <|
-    State [] (preparePath url.path) (prepareQuery url.query) url.fragment identity
+    State (preparePath url.path) (prepareQuery url.query) url.fragment identity
 
 
 getFirstMatch : List (State a) -> Maybe a
