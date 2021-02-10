@@ -223,8 +223,12 @@ addPrefixed prefix maybeSegment starter =
 
 
 {-| **Use [Url.Builder](Url-Builder) instead!** Functions like `absolute`,
-`relative`, and `crossOrigin` already do this automatically! `percentEncode`
-is only available so that extremely custom cases are possible, if needed.
+`relative`, and `crossOrigin` already encode query parameters automatically!
+`percentEncode` is only available so that extremely custom cases are possible,
+if needed. (Note that those functions do not percent-encode path components,
+because [not everyone needs the same encoding](https://github.com/elm/url/issues/25#issuecomment-776365116).
+If you need to do that, you need to call this function on each path, for example
+`Url.Builder.absolute (List.map percentEncode ["encode me"]) []` to get `/encode%20me`.)
 
 Percent-encoding is how [the official URI spec][uri] “escapes” special
 characters. You can still represent a `?` even though it is reserved for
@@ -259,7 +263,11 @@ percentEncode =
 
 {-| **Use [Url.Parser](Url-Parser) instead!** It will decode query
 parameters appropriately already! `percentDecode` is only available so that
-extremely custom cases are possible, if needed.
+extremely custom cases are possible, if needed. (Note that Url.Parser
+does not percent-decode path components, because [not everyone needs
+the same encoding](https://github.com/elm/url/issues/25#issuecomment-776365116).
+If you need to do that, you can create a [custom `Url.Parser` with
+`custom "STRING" Url.percentDecode`](https://github.com/elm/url/issues/42#issue-805049603).)
 
 Check out the `percentEncode` function to learn about percent-encoding.
 This function does the opposite! Here are the reverse examples:
