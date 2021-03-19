@@ -193,6 +193,14 @@ int : String -> Int -> QueryParameter
 int key value =
   QueryParameter (Url.percentEncode key) (String.fromInt value)
 
+{-| Equivalent to Html.none, this does nothing. Adds nothing to a query
+
+  absolute ["products"] [ string "search" "hat", none]
+  == absolute ["products"] [ string "search" "hat"]
+
+-}
+none : QueryParameter
+none = QueryParameter "" ""
 
 {-| Convert a list of query parameters to a percent-encoded query. This
 function is used by `absolute`, `relative`, etc.
@@ -211,12 +219,13 @@ function is used by `absolute`, `relative`, etc.
 -}
 toQuery : List QueryParameter -> String
 toQuery parameters =
-  case parameters of
+  let parameters_ = List.filter ((/=) none) parameters
+  in case parameters_ of
     [] ->
       ""
 
     _ ->
-      "?" ++ String.join "&" (List.map toQueryPair parameters)
+      "?" ++ String.join "&" (List.map toQueryPair parameters_)
 
 
 toQueryPair : QueryParameter -> String
