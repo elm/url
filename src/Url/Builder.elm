@@ -1,6 +1,6 @@
 module Url.Builder exposing
   ( absolute, relative, crossOrigin, custom, Root(..)
-  , QueryParameter, string, int, toQuery
+  , QueryParameter, string, int, none, toQuery
   )
 
 
@@ -21,7 +21,7 @@ This module helps you create these!
 @docs absolute, relative, crossOrigin, custom, Root
 
 # Queries
-@docs QueryParameter, string, int, toQuery
+@docs QueryParameter, string, int, none, toQuery
 
 -}
 
@@ -193,6 +193,16 @@ int : String -> Int -> QueryParameter
 int key value =
   QueryParameter (Url.percentEncode key) (String.fromInt value)
 
+{-| Equivalent to Html.none, this does nothing.
+Adds nothing to a query.
+This is useful for the generation of dynamic urls.
+
+  absolute ["products"] [ string "search" "hat", none]
+  == absolute ["products"] [ string "search" "hat"]
+
+-}
+none : QueryParameter
+none = QueryParameter "" ""
 
 {-| Convert a list of query parameters to a percent-encoded query. This
 function is used by `absolute`, `relative`, etc.
@@ -221,4 +231,6 @@ toQuery parameters =
 
 toQueryPair : QueryParameter -> String
 toQueryPair (QueryParameter key value) =
-  key ++ "=" ++ value
+  if QueryParameter key value == none
+    then ""
+    else key ++ "=" ++ value
