@@ -221,12 +221,12 @@ function is used by `absolute`, `relative`, etc.
 -}
 toQuery : List QueryParameter -> String
 toQuery parameters =
-  case parameters_ of
+  case parameters of
     [] ->
       ""
 
     _ ->
-      "?" ++ String.join "&" (List.map toQueryPair parameters_)
+      "?" ++ String.join "&" (List.map toQueryPair parameters)
 
 
 toQueryPair : QueryParameter -> String
