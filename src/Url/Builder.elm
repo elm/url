@@ -21,7 +21,7 @@ This module helps you create these!
 @docs absolute, relative, crossOrigin, custom, Root
 
 # Queries
-@docs QueryParameter, string, int, toQuery
+@docs QueryParameter, string, int, none, toQuery
 
 -}
 
@@ -193,7 +193,9 @@ int : String -> Int -> QueryParameter
 int key value =
   QueryParameter (Url.percentEncode key) (String.fromInt value)
 
-{-| Equivalent to Html.none, this does nothing. Adds nothing to a query
+{-| Equivalent to Html.none, this does nothing.
+Adds nothing to a query.
+This is useful for the generation of dynamic urls.
 
   absolute ["products"] [ string "search" "hat", none]
   == absolute ["products"] [ string "search" "hat"]
