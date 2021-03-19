@@ -221,8 +221,7 @@ function is used by `absolute`, `relative`, etc.
 -}
 toQuery : List QueryParameter -> String
 toQuery parameters =
-  let parameters_ = List.filter ((/=) none) parameters
-  in case parameters_ of
+  case parameters_ of
     [] ->
       ""
 
@@ -232,4 +231,6 @@ toQuery parameters =
 
 toQueryPair : QueryParameter -> String
 toQueryPair (QueryParameter key value) =
-  key ++ "=" ++ value
+  if QueryParameter key value == none
+    then ""
+    else key ++ "=" ++ value
