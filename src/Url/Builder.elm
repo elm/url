@@ -1,6 +1,6 @@
 module Url.Builder exposing
   ( absolute, relative, crossOrigin, custom, Root(..)
-  , QueryParameter, string, int, toQuery
+  , QueryParameter, string, int, none, toQuery
   )
 
 
