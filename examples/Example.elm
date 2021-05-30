@@ -126,7 +126,7 @@ viewRoute : Maybe Route -> Html msg
 viewRoute maybeRoute =
     case maybeRoute of
         Nothing ->
-            li [] [ code [] [ text "Uknown URL" ] ]
+            li [] [ code [] [ text "Unknown URL" ] ]
 
         Just route ->
             li [] [ code [] [ text (Debug.toString route) ] ]
