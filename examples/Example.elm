@@ -52,7 +52,6 @@ type Route
     | BlogList (Maybe String)
     | BlogPost Int
 
-
 routeParser : Parser (Route -> a) a
 routeParser =
     P.oneOf
@@ -60,6 +59,22 @@ routeParser =
         , P.map BlogList (s "blog" <?> Q.string "search")
         , P.map BlogPost (s "blog" </> P.int)
         ]
+
+-- You could use Debug.toString here, but that is not recommended for production use
+routeToString : Route -> String
+routeToString route =
+    case route of
+        BlogList (Just name) ->
+            "BlogList (Just " ++ name ++ ")"
+
+        BlogList Nothing ->
+            "BlogList Nothing"
+
+        BlogPost num ->
+            "BlogPost " ++ String.fromInt num
+
+        Home ->
+            "Home"
 
 
 
@@ -129,4 +144,4 @@ viewRoute maybeRoute =
             li [] [ code [] [ text "Unknown URL" ] ]
 
         Just route ->
-            li [] [ code [] [ text (Debug.toString route) ] ]
+            li [] [ code [] [ text (routeToString route) ] ]
