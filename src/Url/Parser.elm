@@ -316,8 +316,7 @@ those into normal parsers.
     -- s "blog" <?> Query.string "search"
     -- s "blog" </> query (Query.string "search")
 
-This may be handy if you need query parameters but are not parsing any path
-segments.
+**Note:** parsers created with just `query` and no path segments expect an empty path.
 -}
 query : Query.Parser query -> Parser (query -> a) a
 query (Q.Parser queryParser) =
